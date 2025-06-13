@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Databend Log Observer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1 class="app-title">Databend Logs</h1>
+                    <div class="status-indicator" id="connection-status">
+                        <span class="status-dot status-disconnected" id="connection-status-dot"></span>
+                        <span class="status-text" id="connection-status-text">Disconnected</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" id="config-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                        Configure
+                    </button>
+                    <button class="header-btn" id="settings-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Filters Bar -->
+            <div class="filters-bar">
+                <div class="filters-left">
+                    <div class="search-box">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="M21 21l-4.35-4.35"/>
+                        </svg>
+                        <input type="text" placeholder="Search logs..." id="search-input" class="search-input">
+                    </div>
+                    <div class="level-filters">
+                        <button class="level-filter active" data-level="all">All</button>
+                        <button class="level-filter error" data-level="error">Error</button>
+                        <button class="level-filter warning" data-level="warning">Warn</button>
+                        <button class="level-filter info" data-level="info">Info</button>
+                        <button class="level-filter debug" data-level="debug">Debug</button>
+                    </div>
+                </div>
+                <div class="filters-right">
+                    <select class="time-range-select" id="time-range">
+                        <option value="5m">Last 5 minutes</option>
+                        <option value="15m">Last 15 minutes</option>
+                        <option value="30m">Last 30 minutes</option>
+                        <option value="1h" selected>Last 1 hour</option>
+                        <option value="3h">Last 3 hours</option>
+                        <option value="6h">Last 6 hours</option>
+                        <option value="12h">Last 12 hours</option>
+                        <option value="24h">Last 24 hours</option>
+                        <option value="2d">Last 2 days</option>
+                    </select>
+                    <button class="refresh-btn" id="refresh-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Overview -->
+            <div class="stats-overview" id="stats-overview">
+                <div class="stat-item">
+                    <div class="stat-value" id="total-count">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item error">
+                    <div class="stat-value" id="error-count">0</div>
+                    <div class="stat-label">Errors</div>
+                </div>
+                <div class="stat-item warning">
+                    <div class="stat-value" id="warning-count">0</div>
+                    <div class="stat-label">Warnings</div>
+                </div>
+                <div class="stat-item info">
+                    <div class="stat-value" id="info-count">0</div>
+                    <div class="stat-label">Info</div>
+                </div>
+                <div class="stat-item debug">
+                    <div class="stat-value" id="debug-count">0</div>
+                    <div class="stat-label">Debug</div>
+                </div>
+            </div>
+
+            <!-- Logs Container -->
+            <div class="logs-container">
+                <div class="logs-header">
+                    <div class="logs-title">
+                        <span id="logs-count">Loading...</span>
+                    </div>
+                </div>
+
+                <!-- Logs List -->
+                <div class="logs-list" id="logs-list">
+                    <!-- Log entries will be populated here -->
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-state" id="loading-state" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Loading logs...</div>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="empty-state" style="display: none;">
+                    <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14,2 14,8 20,8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10,9 9,9 8,9"/>
+                    </svg>
+                    <div class="empty-title">No logs found</div>
+                    <div class="empty-description">Try adjusting your filters or time range</div>
+                </div>
+
+                <!-- Connection Message -->
+                <div class="connection-message" id="connection-message" style="display: none;">
+                    <svg class="connection-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
+                    </svg>
+                    <div class="connection-title">Database Not Connected</div>
+                    <div class="connection-description">Please configure your Databend connection to view logs</div>
+                    <button class="btn btn-primary" onclick="document.getElementById('config-btn').click()">
+                        Configure Connection
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination" id="pagination">
+                <div class="pagination-info">
+                    <span id="pagination-text">Showing 1-50 of 1,234 logs</span>
+                    <div class="page-size-selector">
+                        <label for="page-size">Show:</label>
+                        <select id="page-size" class="page-size-select">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                        <span>per page</span>
+                    </div>
+                </div>
+                <div class="pagination-controls">
+                    <button class="pagination-btn" id="prev-btn" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15,18 9,12 15,6"/>
+                        </svg>
+                        Previous
+                    </button>
+                    <div class="page-numbers" id="page-numbers">
+                        <!-- Page numbers will be populated here -->
+                    </div>
+                    <button class="pagination-btn" id="next-btn">
+                        Next
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9,18 15,12 9,6"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Log Detail Modal -->
+        <div class="modal-overlay" id="modal-overlay" style="display: none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">Log Details</h2>
+                    <button class="modal-close" id="modal-close">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-content" id="modal-content">
+                    <!-- Modal content will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Modal -->
+        <div class="modal-overlay" id="config-modal-overlay" style="display: none;">
+            <div class="modal config-modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">Database Configuration</h2>
+                    <button class="modal-close" id="config-modal-close">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-content">
+                    <div class="config-form">
+                        <!-- Current Connection Info -->
+                        <div class="current-connection" id="current-connection" style="display: none;">
+                            <div class="connection-info">
+                                <div class="connection-label">Current Connection:</div>
+                                <div class="connection-dsn" id="current-dsn">Not connected</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="dsn-input">Databend DSN Connection String</label>
+                            <input type="text" id="dsn-input" class="form-input" 
+                                   placeholder="databend://username:password@host:port/database?sslmode=disable"
+                                   value="">
+                            <div class="form-help">
+                                Example: <code>databend://root:@localhost:8000/default?sslmode=disable</code>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-secondary" id="config-cancel">Cancel</button>
+                            <button class="btn btn-primary" id="config-connect">Connect</button>
+                        </div>
+                        <div class="connection-status" id="connection-feedback" style="display: none;">
+                            <!-- Connection status feedback -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
