@@ -1,5 +1,45 @@
 /* Modern Log Viewer - Clean & Minimal Design */
 
+/* Tab Navigation */
+.tab-navigation {
+    display: flex;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: var(--space-4);
+    background-color: var(--bg-secondary);
+    padding: 0 var(--space-6);
+}
+
+.tab-button {
+    padding: var(--space-3) var(--space-6);
+    border: none;
+    background: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+    color: var(--text-primary);
+}
+
+.tab-button.active {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.tab-button.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: var(--primary);
+}
+
 /* Reset & Base */
 * {
     margin: 0;
@@ -791,6 +831,13 @@ body {
     text-align: center;
 }
 
+.loading-state {
+    background-color: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    min-width: 200px;
+}
+
 .loading-spinner {
     width: 32px;
     height: 32px;
@@ -1178,6 +1225,156 @@ body {
     word-break: break-all;
 }
 
+/* Logs Table */
+.logs-table-container {
+    overflow-x: auto;
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    margin-bottom: var(--space-4);
+}
+
+/* Query History Table */
+.queries-container {
+    padding: 0 var(--space-6);
+}
+
+.query-row {
+    cursor: pointer;
+}
+
+/* Query Table Columns */
+.col-number {
+    width: 50px;
+}
+
+.col-timestamp {
+    width: 160px;
+}
+
+.col-user {
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.col-database {
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.col-query-text {
+    max-width: 500px;
+    min-width: 300px;
+    width: 50%;
+}
+
+.col-query-id {
+    max-width: 280px;
+    min-width: 200px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.col-duration {
+    width: 100px;
+    text-align: right;
+}
+
+.col-status {
+    width: 80px;
+    text-align: center;
+}
+
+/* Query Status Badges */
+.query-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.query-status.error {
+    background-color: var(--error-light-bg);
+    color: var(--error-color);
+}
+
+.query-status.success {
+    background-color: var(--success-light-bg);
+    color: var(--success-color);
+}
+
+/* Query Text Truncation */
+.query-text {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+
+/* Query Text Collapsible */
+.query-container {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+}
+
+.query-text {
+    font-family: var(--font-mono);
+    line-height: 1.4;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.query-text.collapsed {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-height: 1.4em;
+}
+
+.query-text.expanded {
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: var(--hover-bg);
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+}
+
+.toggle-sql-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    margin-left: 4px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.toggle-sql-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--primary-color);
+}
+
+/* Query Stats Overview */
+.query-stats-overview {
+    display: flex;
+    gap: var(--space-6);
+    padding: 0 var(--space-6) var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .header-content {
@@ -1311,4 +1508,39 @@ body {
 
 .dropdown-item:last-child {
     margin-bottom: 4px;
+}
+
+/* Query ID clickable styling */
+.query-id-clickable {
+    color: #007bff;
+    text-decoration: underline;
+    transition: color 0.2s ease;
+}
+
+.query-id-clickable:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+/* Auto refresh selector styling */
+.auto-refresh-select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+    margin-left: 8px;
+}
+
+.auto-refresh-select:hover {
+    border-color: #007bff;
+}
+
+.auto-refresh-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }

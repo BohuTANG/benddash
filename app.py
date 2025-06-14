@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from database import DatabendClient, LogRepository, MetricsRepository
+from database import DatabendClient, LogRepository, MetricsRepository, QueryRepository
 import os
 import argparse
 import json
@@ -10,6 +10,7 @@ app = Flask(__name__)
 db_client = None
 log_repo = None
 metrics_repo = None
+query_repo = None
 connection_status = {"connected": False, "error": None, "dsn_masked": None}
 
 # DSN configuration file path
@@ -65,7 +66,7 @@ def load_dsn_config():
 
 def initialize_database(dsn):
     """Initialize database connection and repositories."""
-    global db_client, log_repo, metrics_repo, connection_status
+    global db_client, log_repo, metrics_repo, query_repo, connection_status
     
     try:
         db_client = DatabendClient(dsn)
@@ -77,6 +78,7 @@ def initialize_database(dsn):
             
         log_repo = LogRepository(db_client)
         metrics_repo = MetricsRepository(db_client)
+        query_repo = QueryRepository(db_client)
         
         connection_status = {"connected": True, "error": None, "dsn_masked": mask_dsn(dsn)}
         print("✅ Connected to Databend successfully!")
@@ -102,6 +104,13 @@ def configure_connection():
         dsn = data.get('dsn')
         if not dsn:
             return jsonify({'success': False, 'error': 'DSN is required'}), 400
+        
+        # Check if database is connected
+        if not db_client.is_connected():
+            return jsonify({
+                'success': False,
+                'message': 'Database not connected, please configure DSN first'
+            }), 400
         
         success = initialize_database(dsn)
         return jsonify({
@@ -141,13 +150,26 @@ def get_logs():
 
 @app.route('/api/metrics', methods=['GET'])
 def get_metrics():
-    if not connection_status["connected"]:
-        return jsonify({'error': 'Database not connected'}), 503
+    if not connection_status['connected']:
+        return jsonify({'error': 'Database not connected'}), 400
     
     try:
-        result = metrics_repo.get_metrics()
-        return jsonify(result)
+        metrics = metrics_repo.get_metrics()
+        return jsonify(metrics)
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/queries', methods=['POST'])
+def get_queries():
+    if not connection_status['connected']:
+        return jsonify({'error': 'Database not connected'}), 400
+    
+    try:
+        filters = request.json or {}
+        queries_data = query_repo.get_queries(filters)
+        return jsonify(queries_data)
+    except Exception as e:
+        print(f"Error getting queries: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
