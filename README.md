@@ -1,63 +1,39 @@
-# BendDash - Databend Log Observer Platform
+# BendDash
 
-A professional-grade log observation platform for Databend that provides unified monitoring and analysis of system logs, query history, and execution profiles.
+A lightweight, intuitive log observer for Databend databases.
 
-## Core Features
+## Features
 
- **Unified Log Analysis** - Join three system tables for complete visibility  
- **Real-time Metrics Dashboard** - Total logs, error rate, average query time  
- **Advanced Filtering** - Time range, log level, component, query ID search  
- **Professional UI** - Dark theme, responsive design, tabbed navigation  
- **Detailed Analysis** - Overview, query, profile, timeline views  
+- **Real-time Log Monitoring** with auto-refresh options (5s to 1h)
+- **Advanced Filtering** by time range, log level, and search terms
+- **Interactive Dashboard** with error statistics and query metrics
+- **Detailed Log Analysis** with expandable message content
+- **Custom SQL Queries** for advanced data exploration
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+# Install
 pip install -r requirements.txt
 
-# Test connection
-python test.py "databend://user:pass@host:port/db"
+configure DSN through web interface
+python start.py --port 5000
 
-# Start application
-python start.py --dsn "databend://user:pass@host:port/db"
-
-# Access interface
+# Access web interface
 open http://localhost:5000
 ```
 
-## Project Structure
+## Configuration Options
 
-```
-benddash/
-├── app.py              # Flask main application
-├── start.py            # Startup script
-├── test.py             # Connection test
-├── config.py           # Configuration file
-├── templates/
-│   └── index.html      # Main page template
-├── static/
-│   ├── style.css       # Stylesheet
-│   └── script.js       # Frontend logic
-└── queries/
-    └── query.sql       # SQL query template
-```
+- **DSN**: Configure through web UI or command line
+- **Port**: Customize with `--port` (default: 5000)
+- **Time Range**: Select from 5m to 2d views
+- **Auto-refresh**: Choose intervals from 5s to 1h
 
-## Core SQL Query
+## Screenshots
 
-Joins three system tables:
-- `system_history.log_history` - Raw logs
-- `system_history.query_history` - Query details  
-- `system_history.profile_history` - Execution profiles
-
-## API Endpoints
-
-- `GET /` - Main page
-- `POST /api/logs` - Get filtered logs
-- `GET /api/metrics` - Get dashboard metrics
-- `POST /api/connect` - Connect to database
-- `POST /api/query` - Execute custom query
+![alt text](image.png)
 
 ---
 
-Professional-grade log observation platform designed for Databend, making system monitoring simple and efficient.
+Made with ❤️ for Databend users
