@@ -484,6 +484,11 @@ class LogObserver {
                 this.renderLogs();
                 this.updateStats();
                 this.updatePagination();
+                
+                // Generate time distribution chart if data is available
+                if (data.timeDistribution) {
+                    this.generateTimeChart(data.timeDistribution);
+                }
             } else {
                 console.error('No logs data received');
             }
@@ -965,16 +970,25 @@ class LogObserver {
         
         const date = new Date(timestamp);
         
-        // Format as YYYY-MM-DD HH:mm:ss.SSS
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
-        
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+        if (detailed) {
+            // Format as YYYY-MM-DD HH:mm:ss.SSS
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+            
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+        } else {
+            // Short format for chart labels: HH:mm:ss
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${hours}:${minutes}:${seconds}`;
+        }
     }
 
     formatNumber(num) {
@@ -1229,6 +1243,104 @@ class LogObserver {
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
+
+    // Generate time distribution chart
+    generateTimeChart(timeDistribution) {
+        const chartContainer = document.getElementById('logs-time-chart');
+        const chartTitle = document.getElementById('logs-chart-title');
+        
+        if (!chartContainer || !chartTitle) return;
+        
+        // Update title
+        chartTitle.textContent = `${this.totalRecords} Results`;
+        
+        // Clear existing chart
+        chartContainer.innerHTML = '';
+        
+        // Debug logging
+        console.log('Log time distribution data:', timeDistribution);
+        
+        if (!timeDistribution || timeDistribution.length === 0) {
+            chartContainer.innerHTML = '<div style="text-align: center; color: var(--text-tertiary); padding: var(--space-4);">No data available</div>';
+            return;
+        }
+        
+        // Find max value for scaling
+        const maxValue = Math.max(...timeDistribution.map(item => item.total || 0));
+        
+        // Create bars
+        timeDistribution.forEach((item, index) => {
+            const barContainer = document.createElement('div');
+            barContainer.className = 'time-chart-bar-container';
+            barContainer.style.flex = '1';
+            barContainer.style.display = 'flex';
+            barContainer.style.flexDirection = 'column';
+            barContainer.style.justifyContent = 'flex-end';
+            barContainer.style.height = '100%';
+            barContainer.style.position = 'relative';
+            
+            const totalHeight = maxValue > 0 ? (item.total / maxValue) * 100 : 0;
+            
+            // Create stacked segments for each log level
+            const levels = ['error', 'warning', 'info', 'debug'];
+            const colors = {
+                'error': 'var(--error)',
+                'warning': 'var(--warning)',
+                'info': 'var(--info)',
+                'debug': 'var(--text-tertiary)'
+            };
+            
+            let currentHeight = 0;
+            levels.forEach(level => {
+                const count = item[level] || 0;
+                if (count > 0) {
+                    const segment = document.createElement('div');
+                    const segmentHeight = (count / item.total) * totalHeight;
+                    
+                    segment.style.height = `${segmentHeight}%`;
+                    segment.style.backgroundColor = colors[level];
+                    segment.style.borderRadius = currentHeight === 0 ? '2px 2px 0 0' : '0';
+                    segment.style.minHeight = segmentHeight > 0 ? '1px' : '0';
+                    
+                    barContainer.appendChild(segment);
+                    currentHeight += segmentHeight;
+                }
+            });
+            
+            // Add tooltip
+            const tooltip = document.createElement('div');
+            tooltip.className = 'time-chart-tooltip';
+            const tooltipContent = [
+                `${this.formatTimestamp(item.time_bucket, false)}`,
+                `Total: ${item.total}`,
+                item.error > 0 ? `Errors: ${item.error}` : null,
+                item.warning > 0 ? `Warnings: ${item.warning}` : null,
+                item.info > 0 ? `Info: ${item.info}` : null,
+                item.debug > 0 ? `Debug: ${item.debug}` : null
+            ].filter(Boolean).join('<br>');
+            
+            tooltip.innerHTML = tooltipContent;
+            barContainer.appendChild(tooltip);
+            
+            chartContainer.appendChild(barContainer);
+        });
+        
+        // Add time labels
+        const labelsContainer = document.createElement('div');
+        labelsContainer.className = 'time-chart-labels';
+        
+        if (timeDistribution.length > 0) {
+            const firstTime = this.formatTimestamp(timeDistribution[0].time_bucket, false);
+            const lastTime = this.formatTimestamp(timeDistribution[timeDistribution.length - 1].time_bucket, false);
+            
+            labelsContainer.innerHTML = `
+                <span>${firstTime}</span>
+                <span>${lastTime}</span>
+            `;
+        }
+        
+        chartContainer.parentNode.appendChild(labelsContainer);
+    }
 }
 
 // Query History Observer class - Using same controls and styles as LogObserver
@@ -1383,6 +1495,11 @@ class QueryHistoryObserver {
                 this.renderQueries();
                 this.updateStats();
                 this.updatePagination();
+                
+                // Generate time distribution chart if data is available
+                if (data.timeDistribution) {
+                    this.generateTimeChart(data.timeDistribution);
+                }
             } else {
                 console.error('No query data received');
             }
@@ -1896,16 +2013,25 @@ class QueryHistoryObserver {
         
         const date = new Date(timestamp);
         
-        // Format as YYYY-MM-DD HH:mm:ss.SSS
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
-        
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+        if (detailed) {
+            // Format as YYYY-MM-DD HH:mm:ss.SSS
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+            
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+        } else {
+            // Short format for chart labels: HH:mm:ss
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${hours}:${minutes}:${seconds}`;
+        }
     }
 
     formatNumber(num) {
@@ -1966,6 +2092,100 @@ class QueryHistoryObserver {
     // Helper function to escape special regex characters
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Generate time distribution chart
+    generateTimeChart(timeDistribution) {
+        const chartContainer = document.getElementById('queries-time-chart');
+        const chartTitle = document.getElementById('queries-chart-title');
+        
+        if (!chartContainer || !chartTitle) return;
+        
+        // Update title
+        chartTitle.textContent = `${this.totalRecords} Results`;
+        
+        // Clear existing chart
+        chartContainer.innerHTML = '';
+        
+        // Debug logging
+        console.log('Query time distribution data:', timeDistribution);
+        
+        if (!timeDistribution || timeDistribution.length === 0) {
+            chartContainer.innerHTML = '<div style="text-align: center; color: var(--text-tertiary); padding: var(--space-4);">No data available</div>';
+            return;
+        }
+        
+        // Find max value for scaling
+        const maxValue = Math.max(...timeDistribution.map(item => item.total || 0));
+        
+        // Create bars
+        timeDistribution.forEach((item, index) => {
+            const barContainer = document.createElement('div');
+            barContainer.className = 'time-chart-bar-container';
+            barContainer.style.flex = '1';
+            barContainer.style.display = 'flex';
+            barContainer.style.flexDirection = 'column';
+            barContainer.style.justifyContent = 'flex-end';
+            barContainer.style.height = '100%';
+            barContainer.style.position = 'relative';
+            
+            const totalHeight = maxValue > 0 ? (item.total / maxValue) * 100 : 0;
+            
+            // Create stacked segments for success and error
+            const levels = ['error', 'success'];
+            const colors = {
+                'error': 'var(--error)',
+                'success': 'var(--success)'
+            };
+            
+            let currentHeight = 0;
+            levels.forEach(level => {
+                const count = item[level] || 0;
+                if (count > 0) {
+                    const segment = document.createElement('div');
+                    const segmentHeight = (count / item.total) * totalHeight;
+                    
+                    segment.style.height = `${segmentHeight}%`;
+                    segment.style.backgroundColor = colors[level];
+                    segment.style.borderRadius = currentHeight === 0 ? '2px 2px 0 0' : '0';
+                    segment.style.minHeight = segmentHeight > 0 ? '1px' : '0';
+                    
+                    barContainer.appendChild(segment);
+                    currentHeight += segmentHeight;
+                }
+            });
+            
+            // Add tooltip
+            const tooltip = document.createElement('div');
+            tooltip.className = 'time-chart-tooltip';
+            const tooltipContent = [
+                `${this.formatTimestamp(item.time_bucket, false)}`,
+                `Total: ${item.total}`,
+                item.success > 0 ? `Success: ${item.success}` : null,
+                item.error > 0 ? `Errors: ${item.error}` : null
+            ].filter(Boolean).join('<br>');
+            
+            tooltip.innerHTML = tooltipContent;
+            barContainer.appendChild(tooltip);
+            
+            chartContainer.appendChild(barContainer);
+        });
+        
+        // Add time labels
+        const labelsContainer = document.createElement('div');
+        labelsContainer.className = 'time-chart-labels';
+        
+        if (timeDistribution.length > 0) {
+            const firstTime = this.formatTimestamp(timeDistribution[0].time_bucket, false);
+            const lastTime = this.formatTimestamp(timeDistribution[timeDistribution.length - 1].time_bucket, false);
+            
+            labelsContainer.innerHTML = `
+                <span>${firstTime}</span>
+                <span>${lastTime}</span>
+            `;
+        }
+        
+        chartContainer.parentNode.appendChild(labelsContainer);
     }
 }
 

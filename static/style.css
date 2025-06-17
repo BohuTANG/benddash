@@ -9,6 +9,110 @@
     font-weight: 500;
 }
 
+/* Time Distribution Chart Styles */
+.time-chart-container {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    box-shadow: var(--shadow-sm);
+}
+
+.time-chart-header {
+    margin-bottom: var(--space-3);
+}
+
+.time-chart-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.time-chart {
+    display: flex;
+    align-items: end;
+    height: 80px;
+    gap: 2px;
+    padding: var(--space-2) 0;
+    position: relative;
+}
+
+.time-chart-bar-container {
+    min-width: 8px;
+    flex: 1;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.time-chart-bar-container:hover {
+    transform: scaleY(1.05);
+}
+
+.time-chart-bar-container:hover .time-chart-tooltip {
+    opacity: 1;
+}
+
+.time-chart-bar {
+    background-color: var(--success);
+    border-radius: 2px 2px 0 0;
+    min-width: 8px;
+    flex: 1;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.time-chart-bar:hover {
+    background-color: var(--primary);
+    transform: scaleY(1.1);
+}
+
+.time-chart-bar.error {
+    background-color: var(--error);
+}
+
+.time-chart-bar.warning {
+    background-color: var(--warning);
+}
+
+.time-chart-bar.info {
+    background-color: var(--info);
+}
+
+.time-chart-bar.debug {
+    background-color: var(--text-tertiary);
+}
+
+.time-chart-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    max-width: 200px;
+    text-align: left;
+}
+
+.time-chart-bar:hover .time-chart-tooltip {
+    opacity: 1;
+}
+
+.time-chart-labels {
+    display: none; /* Hide time labels below charts */
+}
+
 /* Tab Navigation */
 .tab-navigation {
     display: flex;
@@ -246,6 +350,11 @@ body {
     gap: var(--space-4);
     margin-bottom: var(--space-6);
     flex-wrap: wrap;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
 }
 
 .filters-left {

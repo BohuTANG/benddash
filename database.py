@@ -59,13 +59,17 @@ class LogRepository:
         # Get paginated logs
         logs = self._get_paginated_logs(where_clause, params, page_size, offset)
         
+        # Get time distribution data
+        time_distribution = self._get_time_distribution(stats_where_clause, stats_params, filters.get('timeRange', '5m'))
+        
         return {
             'logs': logs,
             'total': total_count,
             'page': page,
             'pageSize': page_size,
             'totalPages': (total_count + page_size - 1) // page_size,
-            'stats': stats
+            'stats': stats,
+            'timeDistribution': time_distribution
         }
     
     def _build_where_clause(self, filters: Dict) -> Tuple[str, List]:
@@ -86,23 +90,28 @@ class LogRepository:
             '2d': 'NOW() - INTERVAL 2 DAY'
         }
         
-        if filters.get('timeRange') in time_ranges:
-            conditions.append(f"timestamp >= {time_ranges[filters['timeRange']]}")
-        
-        # Level mapping
-        level_map = {'warning': 'WARN', 'error': 'ERROR', 'info': 'INFO', 'debug': 'DEBUG'}
-        if filters.get('level') and filters['level'] in level_map:
-            conditions.append(f"log_level = '{level_map[filters['level']]}'")
-        
-        # 查询ID优先搜索
+        # 查询ID搜索 - 当搜索query ID时，不需要时间范围和其他过滤条件
         if filters.get('queryId'):
-            # 如果提供了查询ID，则只根据查询ID搜索，忽略其他搜索条件
             conditions.append("query_id = ?")
             params.append(filters['queryId'])
-        # 只有在没有查询ID的情况下，才进行普通搜索
-        elif filters.get('search'):
-            conditions.append("message LIKE ?")
-            params.append(f"%{filters['search']}%")
+            # Level filter still applies for query ID search
+            level_map = {'warning': 'WARN', 'error': 'ERROR', 'info': 'INFO', 'debug': 'DEBUG'}
+            if filters.get('level') and filters['level'] in level_map:
+                conditions.append(f"log_level = '{level_map[filters['level']]}'")
+        else:
+            # 只有在没有查询ID时才应用时间范围和普通搜索
+            if filters.get('timeRange') in time_ranges:
+                conditions.append(f"timestamp >= {time_ranges[filters['timeRange']]}")
+            
+            # Level mapping
+            level_map = {'warning': 'WARN', 'error': 'ERROR', 'info': 'INFO', 'debug': 'DEBUG'}
+            if filters.get('level') and filters['level'] in level_map:
+                conditions.append(f"log_level = '{level_map[filters['level']]}'")
+            
+            # 普通文本搜索
+            if filters.get('search'):
+                conditions.append("message LIKE ?")
+                params.append(f"%{filters['search']}%")
         
         return " AND ".join(conditions), params
     
@@ -166,6 +175,81 @@ class LogRepository:
             logs.append(log_dict)
         
         return logs
+    
+    def _get_time_distribution(self, where_clause: str, params: List, time_range: str) -> List[Dict]:
+        """Generate time distribution data for charts"""
+        # Check if this is a query ID search (no time range needed)
+        is_query_id_search = any('query_id = ?' in where_clause for _ in [where_clause])
+        
+        if is_query_id_search:
+            # For query ID search, use HOUR precision and no time range
+            precision = 'HOUR'
+        else:
+            # Determine bucket precision based on time range
+            bucket_precision = {
+                '1m': 'SECOND',   # For 1 minute, group by second
+                '5m': 'MINUTE',   # For 5 minutes, group by minute
+                '15m': 'MINUTE',  # For 15 minutes, group by minute
+                '30m': 'MINUTE',  # For 30 minutes, group by minute
+                '1h': 'MINUTE',   # For 1 hour, group by minute
+                '3h': 'HOUR',     # For 3 hours, group by hour
+                '6h': 'HOUR',     # For 6 hours, group by hour
+                '12h': 'HOUR',    # For 12 hours, group by hour
+                '24h': 'HOUR',    # For 24 hours, group by hour
+                '2d': 'HOUR'      # For 2 days, group by hour
+            }
+            precision = bucket_precision.get(time_range, 'MINUTE')
+        
+        query = f"""
+        SELECT
+            TRUNC(timestamp, '{precision}') as time_bucket,
+            log_level,
+            COUNT(*) as count
+        FROM system_history.log_history
+        {where_clause}
+        GROUP BY time_bucket, log_level
+        ORDER BY time_bucket, log_level
+        """
+        
+        results, _, error = self.db.execute_query(query, params)
+        
+        # Debug logging
+        print(f"Time distribution query: {query}")
+        print(f"Query params: {params}")
+        print(f"Query error: {error}")
+        print(f"Query results: {results}")
+        
+        if error or not results:
+            print(f"No time distribution data: error={error}, results={results}")
+            return []
+        
+        # Group results by time bucket and aggregate by log level
+        time_buckets = {}
+        for time_bucket, log_level, count in results:
+            bucket_key = time_bucket.isoformat() if time_bucket else None
+            if bucket_key not in time_buckets:
+                time_buckets[bucket_key] = {
+                    'time_bucket': bucket_key,
+                    'total': 0,
+                    'error': 0,
+                    'warning': 0,
+                    'info': 0,
+                    'debug': 0
+                }
+            
+            # Map database log levels to frontend levels
+            level_map = {'ERROR': 'error', 'WARN': 'warning', 'INFO': 'info', 'DEBUG': 'debug'}
+            frontend_level = level_map.get(log_level, 'info')
+            
+            time_buckets[bucket_key][frontend_level] += count
+            time_buckets[bucket_key]['total'] += count
+        
+        # Convert to list and sort by time
+        time_distribution = list(time_buckets.values())
+        time_distribution.sort(key=lambda x: x['time_bucket'] or '')
+        
+        print(f"Final time distribution: {time_distribution}")
+        return time_distribution
 
 class QueryRepository:
     def __init__(self, db_client: DatabendClient):
@@ -191,13 +275,17 @@ class QueryRepository:
         # Process queries to calculate durations
         processed_queries = self._process_query_durations(queries)
         
+        # Get time distribution data
+        time_distribution = self._get_time_distribution(where_clause, params, filters.get('timeRange', '5m'))
+        
         return {
             'queries': processed_queries,
             'total': total_count,
             'page': page,
             'pageSize': page_size,
             'totalPages': (total_count + page_size - 1) // page_size,
-            'stats': stats
+            'stats': stats,
+            'timeDistribution': time_distribution
         }
     
     def _build_where_clause(self, filters: Dict) -> Tuple[str, List]:
@@ -219,7 +307,7 @@ class QueryRepository:
         }
         
         if filters.get('timeRange') in time_ranges:
-            conditions.append(f"event_time >= {time_ranges[filters['timeRange']]}")
+            conditions.append(f"query_start_time >= {time_ranges[filters['timeRange']]}")
         
         # Query status filter
         if filters.get('status'):
@@ -270,11 +358,11 @@ class QueryRepository:
     def _get_stats(self, where_clause: str, params: List) -> Dict:
         # Get query statistics: total, success, error, avg duration
         query = f"""
-        SELECT 
+        SELECT
             COUNT(DISTINCT query_id) as total_queries,
-            SUM(CASE WHEN exception_code = 0 AND log_type_name = 'QueryEnd' THEN 1 ELSE 0 END) as success_queries,
-            SUM(CASE WHEN exception_code != 0 AND log_type_name = 'QueryEnd' THEN 1 ELSE 0 END) as error_queries,
-            AVG(CASE WHEN log_type_name = 'QueryEnd' THEN query_duration_ms ELSE NULL END) as avg_duration_ms
+            SUM(CASE WHEN exception_code = 0 THEN 1 ELSE 0 END) as success_queries,
+            SUM(CASE WHEN exception_code != 0 THEN 1 ELSE 0 END) as error_queries,
+            AVG(query_duration_ms) as avg_duration_ms
         FROM system_history.query_history
         {where_clause}
         """
@@ -371,6 +459,86 @@ class QueryRepository:
                 seen_query_ids.add(query_id)
         
         return processed_queries
+    
+    def _get_time_distribution(self, where_clause: str, params: List, time_range: str) -> List[Dict]:
+        """Generate time distribution data for charts"""
+        # Determine bucket precision based on time range
+        bucket_precision = {
+            '1m': 'SECOND',   # For 1 minute, group by second
+            '5m': 'MINUTE',   # For 5 minutes, group by minute
+            '15m': 'MINUTE',  # For 15 minutes, group by minute
+            '30m': 'MINUTE',  # For 30 minutes, group by minute
+            '1h': 'MINUTE',   # For 1 hour, group by minute
+            '3h': 'HOUR',     # For 3 hours, group by hour
+            '6h': 'HOUR',     # For 6 hours, group by hour
+            '12h': 'HOUR',    # For 12 hours, group by hour
+            '24h': 'HOUR',    # For 24 hours, group by hour
+            '2d': 'HOUR'      # For 2 days, group by hour
+        }
+        
+        precision = bucket_precision.get(time_range, 'MINUTE')
+        
+        # Temporarily remove log_type_name filter to debug
+        # if where_clause:
+        #     where_clause += " AND log_type_name = 'QueryEnd'"
+        # else:
+        #     where_clause = "WHERE log_type_name = 'QueryEnd'"
+        
+        query = f"""
+        SELECT
+            TRUNC(query_start_time, '{precision}') as time_bucket,
+            CASE WHEN exception_code IS NOT NULL AND exception_code != 0 THEN 'error' ELSE 'success' END as status,
+            COUNT(*) as count
+        FROM system_history.query_history
+        {where_clause}
+        GROUP BY time_bucket, status
+        ORDER BY time_bucket, status
+        """
+        
+        results, _, error = self.db.execute_query(query, params)
+        
+        # Debug logging
+        print(f"Query time distribution query: {query}")
+        print(f"Query params: {params}")
+        print(f"Query error: {error}")
+        print(f"Query results: {results}")
+        
+        # Additional debug: check if there are any QueryEnd records at all
+        debug_query = """
+        SELECT COUNT(*) as total_queryend,
+               MIN(query_start_time) as earliest_time,
+               MAX(query_start_time) as latest_time
+        FROM system_history.query_history
+        WHERE log_type_name = 'QueryEnd'
+        """
+        debug_results, _, debug_error = self.db.execute_query(debug_query, [])
+        print(f"Debug QueryEnd check: {debug_results}")
+        
+        if error or not results:
+            print(f"No query time distribution data: error={error}, results={results}")
+            return []
+        
+        # Group results by time bucket and aggregate by status
+        time_buckets = {}
+        for time_bucket, status, count in results:
+            bucket_key = time_bucket.isoformat() if time_bucket else None
+            if bucket_key not in time_buckets:
+                time_buckets[bucket_key] = {
+                    'time_bucket': bucket_key,
+                    'total': 0,
+                    'success': 0,
+                    'error': 0
+                }
+            
+            time_buckets[bucket_key][status] += count
+            time_buckets[bucket_key]['total'] += count
+        
+        # Convert to list and sort by time
+        time_distribution = list(time_buckets.values())
+        time_distribution.sort(key=lambda x: x['time_bucket'] or '')
+        
+        print(f"Final query time distribution: {time_distribution}")
+        return time_distribution
 
 
 class MetricsRepository:
