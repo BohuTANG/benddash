@@ -622,8 +622,11 @@ class LogObserver {
         // Truncate message for preview
         const truncatedMessage = fullMessage.length > 150 ? fullMessage.substring(0, 150) + '...' : fullMessage;
         
+        // Apply search highlighting to truncated message
+        const highlightedTruncated = this.highlightSearchTerms(truncatedMessage);
+        
         message.innerHTML = `
-            <div class="message-preview">${truncatedMessage}</div>
+            <div class="message-preview">${highlightedTruncated}</div>
         `;
 
         // Expand/Collapse icon button (only if message is long)
@@ -671,7 +674,8 @@ class LogObserver {
             const lines = fullMessage.split('\n');
             expandedMessage.innerHTML = lines.map(line => {
                 const escapedLine = this.escapeHtml(line);
-                return `<div class="message-line"><span class="line-content">${escapedLine}<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-success">Copied!</span></span></div>`;
+                const highlightedLine = this.highlightSearchTerms(escapedLine);
+                return `<div class="message-line"><span class="line-content">${highlightedLine}<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-success">Copied!</span></span></div>`;
             }).join('');
             
             expandedContent.appendChild(expandedMessage);
@@ -1202,6 +1206,29 @@ class LogObserver {
     // Removed setAutoRefreshInterval function as it is no longer needed
     
     // Removed getIntervalText function as it is no longer needed
+
+    // Search highlighting function
+    highlightSearchTerms(text) {
+        if (!this.searchQuery || this.searchQuery.trim() === '') {
+            return text;
+        }
+        
+        const searchTerm = this.searchQuery.trim();
+        if (searchTerm.length === 0) {
+            return text;
+        }
+        
+        // Create a case-insensitive regex to find all occurrences
+        const regex = new RegExp(`(${this.escapeRegex(searchTerm)})`, 'gi');
+        
+        // Replace matches with highlighted version
+        return text.replace(regex, '<span class="search-highlight">$1</span>');
+    }
+    
+    // Helper function to escape special regex characters
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
 }
 
 // Query History Observer class - Using same controls and styles as LogObserver
@@ -1491,8 +1518,11 @@ class QueryHistoryObserver {
         // Truncate query for preview
         const truncatedQuery = fullQuery.length > 150 ? fullQuery.substring(0, 150) + '...' : fullQuery;
         
+        // Apply search highlighting to truncated query
+        const highlightedTruncated = this.highlightSearchTerms(this.escapeHtml(truncatedQuery));
+        
         message.innerHTML = `
-            <div class="message-preview">${this.escapeHtml(truncatedQuery)}</div>
+            <div class="message-preview">${highlightedTruncated}</div>
         `;
 
         // Expand/Collapse icon button (only if query is long)
@@ -1543,7 +1573,8 @@ class QueryHistoryObserver {
             const lines = fullQuery.split('\n');
             expandedMessage.innerHTML = lines.map(line => {
                 const escapedLine = this.escapeHtml(line);
-                return `<div class="message-line"><span class="line-content">${escapedLine}<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-success">Copied!</span></span></div>`;
+                const highlightedLine = this.highlightSearchTerms(escapedLine);
+                return `<div class="message-line"><span class="line-content">${highlightedLine}<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-success">Copied!</span></span></div>`;
             }).join('');
             
             expandedContent.appendChild(expandedMessage);
@@ -1912,6 +1943,29 @@ class QueryHistoryObserver {
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
         };
+    }
+
+    // Search highlighting function
+    highlightSearchTerms(text) {
+        if (!this.searchQuery || this.searchQuery.trim() === '') {
+            return text;
+        }
+        
+        const searchTerm = this.searchQuery.trim();
+        if (searchTerm.length === 0) {
+            return text;
+        }
+        
+        // Create a case-insensitive regex to find all occurrences
+        const regex = new RegExp(`(${this.escapeRegex(searchTerm)})`, 'gi');
+        
+        // Replace matches with highlighted version
+        return text.replace(regex, '<span class="search-highlight">$1</span>');
+    }
+    
+    // Helper function to escape special regex characters
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 }
 
