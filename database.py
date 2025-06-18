@@ -2,10 +2,12 @@ from databend_driver import BlockingDatabendClient
 import os
 from typing import Dict, List, Tuple, Optional, Any
 import datetime
+from urllib.parse import urlparse
 
 class DatabendClient:
     def __init__(self, dsn=None):
         self.client = None
+        self.database = None
         if dsn:
             self._connect_with_dsn(dsn)
         else:
@@ -15,10 +17,16 @@ class DatabendClient:
         dsn = os.getenv('DATABEND_DSN')
         if not dsn:
             raise ValueError("DATABEND_DSN environment variable not set")
-        self.client = BlockingDatabendClient(dsn)
+        self._connect_with_dsn(dsn)
     
     def _connect_with_dsn(self, dsn):
         self.client = BlockingDatabendClient(dsn)
+        parsed_dsn = urlparse(dsn)
+        if parsed_dsn.path and parsed_dsn.path.strip('/'):
+            self.database = parsed_dsn.path.strip('/')
+        else:
+            self.database = 'system_history'
+            print("⚠️ Warning: No database specified in DSN, defaulting to 'system_history'.")
     
     def execute_query(self, query: str, params: List = None) -> Tuple[List, List, Optional[str]]:
         try:
@@ -116,7 +124,7 @@ class LogRepository:
         return " AND ".join(conditions), params
     
     def _get_total_count(self, where_clause: str, params: List) -> int:
-        query = f"SELECT COUNT(*) FROM system_history.log_history {where_clause}"
+        query = f"SELECT COUNT(*) FROM {self.db.database}.log_history {where_clause}"
         results, _, error = self.db.execute_query(query, params)
         return results[0][0] if results and not error else 0
     
@@ -125,7 +133,7 @@ class LogRepository:
         SELECT 
             log_level,
             COUNT(*) as count
-        FROM system_history.log_history
+        FROM {self.db.database}.log_history
         {where_clause}
         GROUP BY log_level
         """
@@ -157,7 +165,7 @@ class LogRepository:
             node_id,
             warehouse_id,
             fields
-        FROM system_history.log_history
+        FROM {self.db.database}.log_history
         {where_clause}
         ORDER BY timestamp DESC
         LIMIT {page_size} OFFSET {offset}
@@ -205,7 +213,7 @@ class LogRepository:
             TRUNC(timestamp, '{precision}') as time_bucket,
             log_level,
             COUNT(*) as count
-        FROM system_history.log_history
+        FROM {self.db.database}.log_history
         {where_clause}
         GROUP BY time_bucket, log_level
         ORDER BY time_bucket, log_level
@@ -345,7 +353,7 @@ class QueryRepository:
     def _get_total_count(self, where_clause: str, params: List) -> int:
         query = f"""
         SELECT COUNT(DISTINCT query_id) as total 
-        FROM system_history.query_history 
+        FROM {self.db.database}.query_history
         {where_clause}
         """
         
@@ -363,7 +371,7 @@ class QueryRepository:
             SUM(CASE WHEN exception_code = 0 THEN 1 ELSE 0 END) as success_queries,
             SUM(CASE WHEN exception_code != 0 THEN 1 ELSE 0 END) as error_queries,
             AVG(query_duration_ms) as avg_duration_ms
-        FROM system_history.query_history
+        FROM {self.db.database}.query_history
         {where_clause}
         """
         
@@ -398,7 +406,7 @@ class QueryRepository:
             scan_rows,
             scan_bytes,
             client_address
-        FROM system_history.query_history
+        FROM {self.db.database}.query_history
         {where_clause}
         ORDER BY query_start_time DESC
         LIMIT {limit} OFFSET {offset}
@@ -489,7 +497,7 @@ class QueryRepository:
             TRUNC(query_start_time, '{precision}') as time_bucket,
             CASE WHEN exception_code IS NOT NULL AND exception_code != 0 THEN 'error' ELSE 'success' END as status,
             COUNT(*) as count
-        FROM system_history.query_history
+        FROM {self.db.database}.query_history
         {where_clause}
         GROUP BY time_bucket, status
         ORDER BY time_bucket, status

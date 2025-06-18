@@ -392,9 +392,8 @@
                     <div class="config-form">
                         <!-- Current Connection Info -->
                         <div class="current-connection" id="current-connection" style="display: none;">
-                            <div class="connection-info">
-                                <div class="connection-label">Current Connection:</div>
-                                <div class="connection-dsn" id="current-dsn">Not connected</div>
+                            <div class="connection-info-grid" id="connection-info-grid">
+                                <!-- Parsed DSN info will be injected here by script.js -->
                             </div>
                         </div>
                         
@@ -406,6 +405,9 @@
                             <div class="form-help">
                                 Example: <code>databend://root:@localhost:8000/default?sslmode=disable</code>
                             </div>
+                           <div class="parsed-dsn-preview" id="parsed-dsn-preview" style="display: none;">
+                               <!-- Parsed DSN details will be shown here in real-time -->
+                           </div>
                         </div>
                         <div class="form-actions">
                             <button class="btn btn-secondary" id="config-cancel">Cancel</button>

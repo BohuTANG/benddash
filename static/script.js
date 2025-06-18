@@ -407,6 +407,47 @@ class LogObserver {
             showLoading: true,
             loadingText: 'Connecting...'
         });
+
+        // DSN input real-time parser
+        const dsnInput = document.getElementById('dsn-input');
+        if (dsnInput) {
+            dsnInput.addEventListener('input', this.debounce((e) => {
+                this.updateDsnPreview(e.target.value);
+            }, 200));
+        }
+    }
+
+    updateDsnPreview(dsn) {
+        const previewDiv = document.getElementById('parsed-dsn-preview');
+        if (!dsn.trim()) {
+            previewDiv.style.display = 'none';
+            return;
+        }
+
+        const parsed = this.parseDsn(dsn);
+        
+        // Filter out empty values and the user property
+        const detailsToShow = Object.entries(parsed).filter(([key, value]) => value && key !== 'user' && key !== 'port');
+
+        if (detailsToShow.length > 0) {
+            previewDiv.style.display = 'grid';
+            previewDiv.innerHTML = ''; // Clear previous content
+
+            detailsToShow.forEach(([key, value]) => {
+                const labelEl = document.createElement('div');
+                labelEl.className = 'preview-info-label';
+                labelEl.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
+
+                const valueEl = document.createElement('div');
+                valueEl.className = 'preview-info-value';
+                valueEl.textContent = value;
+
+                previewDiv.appendChild(labelEl);
+                previewDiv.appendChild(valueEl);
+            });
+        } else {
+            previewDiv.style.display = 'none';
+        }
     }
 
     // Detect if it's a query ID format (UUID or numeric ID)
@@ -1124,15 +1165,71 @@ class LogObserver {
     }
 
     updateCurrentConnectionDisplay() {
-        const currentConnection = document.getElementById('current-connection');
-        const currentDsn = document.getElementById('current-dsn');
-        
-        if (this.connectionStatus.connected) {
-            currentConnection.style.display = 'block';
-            currentDsn.textContent = 'Connected to Databend';
+        const currentConnectionDiv = document.getElementById('current-connection');
+        const connectionInfoGrid = document.getElementById('connection-info-grid');
+
+        if (this.connectionStatus.connected && this.connectionStatus.dsn) {
+            currentConnectionDiv.style.display = 'block';
+            
+            // Clear previous entries
+            connectionInfoGrid.innerHTML = '';
+
+            // Parse the DSN
+            const parsedDsn = this.parseDsn(this.connectionStatus.dsn);
+
+            // Create and append new grid items
+            for (const [key, value] of Object.entries(parsedDsn)) {
+                if (value) { // Only display if value exists
+                    const labelEl = document.createElement('div');
+                    labelEl.className = 'connection-info-label';
+                    labelEl.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
+
+                    const valueEl = document.createElement('div');
+                    valueEl.className = 'connection-info-value';
+                    valueEl.textContent = value;
+
+                    connectionInfoGrid.appendChild(labelEl);
+                    connectionInfoGrid.appendChild(valueEl);
+                }
+            }
         } else {
-            currentConnection.style.display = 'none';
+            currentConnectionDiv.style.display = 'none';
+            connectionInfoGrid.innerHTML = '';
         }
+    }
+
+    parseDsn(dsn) {
+        const result = {
+            user: '',
+            host: '',
+            port: '',
+            database: '',
+            warehouse: ''
+        };
+
+        try {
+            const url = new URL(dsn.replace('databend://', 'http://'));
+            
+            result.user = url.username || '';
+            result.host = url.hostname || '';
+            result.port = url.port || '';
+            result.database = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
+            result.warehouse = url.searchParams.get('warehouse') || '';
+
+        } catch (e) {
+            console.error("Could not parse DSN:", e);
+            // Fallback for simple regex if URL parsing fails, though less robust
+            const match = dsn.match(/databend:\/\/([^:]+):[^@]+@([^:]+):(\d+)\/([^?]+)\?warehouse=(.*)/);
+            if (match) {
+                result.user = match[1];
+                result.host = match[2];
+                result.port = match[3];
+                result.database = match[4];
+                result.warehouse = match[5];
+            }
+        }
+        
+        return result;
     }
 
     closeConfigModal() {

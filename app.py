@@ -3,6 +3,7 @@ from database import DatabendClient, LogRepository, MetricsRepository, QueryRepo
 import os
 import argparse
 import json
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 
@@ -80,12 +81,25 @@ def initialize_database(dsn):
         metrics_repo = MetricsRepository(db_client)
         query_repo = QueryRepository(db_client)
         
-        connection_status = {"connected": True, "error": None, "dsn_masked": mask_dsn(dsn)}
+        connection_status = {
+            "connected": True,
+            "error": None,
+            "dsn_masked": mask_dsn(dsn),
+            "database": db_client.database,
+            "message": "Successfully connected."
+        }
+        if not urlparse(dsn).path or not urlparse(dsn).path.strip('/'):
+            connection_status['message'] = "Warning: No database specified in DSN, defaulting to 'system_history'."
         print("✅ Connected to Databend successfully!")
         save_dsn_config(dsn)
         return True
     except Exception as e:
-        connection_status = {"connected": False, "error": str(e), "dsn_masked": mask_dsn(dsn) if dsn else None}
+        connection_status = {
+            "connected": False,
+            "error": str(e),
+            "dsn_masked": mask_dsn(dsn) if dsn else None,
+            "database": None
+        }
         print(f"❌ Failed to initialize database: {e}")
         return False
 
@@ -106,7 +120,7 @@ def configure_connection():
             return jsonify({'success': False, 'error': 'DSN is required'}), 400
         
         # Check if database is connected
-        if not db_client.is_connected():
+        if not db_client or not connection_status["connected"]:
             return jsonify({
                 'success': False,
                 'message': 'Database not connected, please configure DSN first'
