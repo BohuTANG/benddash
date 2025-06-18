@@ -67,16 +67,23 @@ def load_dsn_config():
 
 def initialize_database(dsn):
     """Initialize database connection and repositories."""
+    import time
+    start_time = time.time()
+    
     global db_client, log_repo, metrics_repo, query_repo, connection_status
     
     try:
+        print(f"🔗 Initializing database connection to: {mask_dsn(dsn)}")
+        
         db_client = DatabendClient(dsn)
         
         # Test the connection with a simple query
+        print("🧪 Testing database connection...")
         _, _, error = db_client.execute_query("SELECT 1")
         if error:
             raise Exception(f"Database connection test failed: {error}")
             
+        print("📚 Initializing repositories...")
         log_repo = LogRepository(db_client)
         metrics_repo = MetricsRepository(db_client)
         query_repo = QueryRepository(db_client)
@@ -90,17 +97,20 @@ def initialize_database(dsn):
         }
         if not urlparse(dsn).path or not urlparse(dsn).path.strip('/'):
             connection_status['message'] = "Warning: No database specified in DSN, defaulting to 'system_history'."
-        print("✅ Connected to Databend successfully!")
+        
+        execution_time = time.time() - start_time
+        print(f"✅ Database initialized successfully in {execution_time:.3f}s! Database: {db_client.database}")
         save_dsn_config(dsn)
         return True
     except Exception as e:
+        execution_time = time.time() - start_time
         connection_status = {
             "connected": False,
             "error": str(e),
             "dsn_masked": mask_dsn(dsn) if dsn else None,
             "database": None
         }
-        print(f"❌ Failed to initialize database: {e}")
+        print(f"❌ Failed to initialize database after {execution_time:.3f}s: {e}")
         return False
 
 @app.route('/')
@@ -113,9 +123,14 @@ def get_connection_status():
 
 @app.route('/api/connection/configure', methods=['POST'])
 def configure_connection():
+    import time
+    start_time = time.time()
+    
     try:
         data = request.get_json()
         dsn = data.get('dsn')
+        print(f"📥 API /api/connection/configure called with DSN: {mask_dsn(dsn)}")
+        
         if not dsn:
             return jsonify({'success': False, 'error': 'DSN is required'}), 400
         
@@ -127,15 +142,24 @@ def configure_connection():
             }), 400
         
         success = initialize_database(dsn)
+        
+        execution_time = time.time() - start_time
+        print(f"📤 API /api/connection/configure completed in {execution_time:.3f}s, success: {success}")
+        
         return jsonify({
             'success': success,
             'status': connection_status
         })
     except Exception as e:
+        execution_time = time.time() - start_time
+        print(f"❌ API /api/connection/configure failed after {execution_time:.3f}s: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/logs', methods=['POST'])
 def get_logs():
+    import time
+    start_time = time.time()
+    
     if not connection_status["connected"]:
         return jsonify({
             'error': 'Database not connected. Please configure connection first.',
@@ -149,9 +173,17 @@ def get_logs():
     
     try:
         filters = request.get_json() or {}
+        print(f"📥 API /api/logs called with filters: {filters}")
+        
         result = log_repo.get_logs(filters)
+        
+        execution_time = time.time() - start_time
+        print(f"📤 API /api/logs completed in {execution_time:.3f}s, returned {result.get('total', 0)} total logs")
+        
         return jsonify(result)
     except Exception as e:
+        execution_time = time.time() - start_time
+        print(f"❌ API /api/logs failed after {execution_time:.3f}s: {str(e)}")
         return jsonify({
             'error': str(e),
             'logs': [],
@@ -164,26 +196,47 @@ def get_logs():
 
 @app.route('/api/metrics', methods=['GET'])
 def get_metrics():
+    import time
+    start_time = time.time()
+    
     if not connection_status['connected']:
         return jsonify({'error': 'Database not connected'}), 400
     
     try:
+        print(f"📥 API /api/metrics called")
+        
         metrics = metrics_repo.get_metrics()
+        
+        execution_time = time.time() - start_time
+        print(f"📤 API /api/metrics completed in {execution_time:.3f}s")
+        
         return jsonify(metrics)
     except Exception as e:
+        execution_time = time.time() - start_time
+        print(f"❌ API /api/metrics failed after {execution_time:.3f}s: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/queries', methods=['POST'])
 def get_queries():
+    import time
+    start_time = time.time()
+    
     if not connection_status['connected']:
         return jsonify({'error': 'Database not connected'}), 400
     
     try:
         filters = request.json or {}
+        print(f"📥 API /api/queries called with filters: {filters}")
+        
         queries_data = query_repo.get_queries(filters)
+        
+        execution_time = time.time() - start_time
+        print(f"📤 API /api/queries completed in {execution_time:.3f}s, returned {queries_data.get('total', 0)} total queries")
+        
         return jsonify(queries_data)
     except Exception as e:
-        print(f"Error getting queries: {e}")
+        execution_time = time.time() - start_time
+        print(f"❌ API /api/queries failed after {execution_time:.3f}s: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

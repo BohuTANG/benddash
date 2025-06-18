@@ -29,18 +29,33 @@ class DatabendClient:
             print("⚠️ Warning: No database specified in DSN, defaulting to 'system_history'.")
     
     def execute_query(self, query: str, params: List = None) -> Tuple[List, List, Optional[str]]:
+        import time
+        start_time = time.time()
+        
         try:
             cursor = self.client.cursor()
+            
+            # Log the SQL query and parameters
             if params:
+                print(f"🔍 Executing SQL: {query}")
+                print(f"📋 Parameters: {params}")
                 cursor.execute(query, params)
             else:
+                print(f"🔍 Executing SQL: {query}")
                 cursor.execute(query)
             
             rows = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
             
+            # Calculate and log execution time
+            execution_time = time.time() - start_time
+            row_count = len(rows) if rows else 0
+            print(f"⏱️  Query executed in {execution_time:.3f}s, returned {row_count} rows")
+            
             return rows, columns, None
         except Exception as e:
+            execution_time = time.time() - start_time
+            print(f"❌ Query failed after {execution_time:.3f}s: {str(e)}")
             return [], [], str(e)
 
 class LogRepository:
@@ -98,7 +113,6 @@ class LogRepository:
             '2d': 'NOW() - INTERVAL 2 DAY'
         }
         
-        # 查询ID搜索 - 当搜索query ID时，不需要时间范围和其他过滤条件
         if filters.get('queryId'):
             conditions.append("query_id = ?")
             params.append(filters['queryId'])
@@ -107,7 +121,6 @@ class LogRepository:
             if filters.get('level') and filters['level'] in level_map:
                 conditions.append(f"log_level = '{level_map[filters['level']]}'")
         else:
-            # 只有在没有查询ID时才应用时间范围和普通搜索
             if filters.get('timeRange') in time_ranges:
                 conditions.append(f"timestamp >= {time_ranges[filters['timeRange']]}")
             
@@ -116,7 +129,6 @@ class LogRepository:
             if filters.get('level') and filters['level'] in level_map:
                 conditions.append(f"log_level = '{level_map[filters['level']]}'")
             
-            # 普通文本搜索
             if filters.get('search'):
                 conditions.append("message LIKE ?")
                 params.append(f"%{filters['search']}%")

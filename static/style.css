@@ -1714,3 +1714,26 @@ body {
     color: #2d3748;
     word-break: break-all;
 }
+
+/* Log Detail Message Content Formatting */
+.log-detail-message-content {
+    background: #f6f8fa;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-primary);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Enhanced message preview formatting */
+.message-preview {
+    line-height: 1.4;
+    word-break: break-word;
+}

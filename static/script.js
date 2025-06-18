@@ -457,10 +457,13 @@ class LogObserver {
         // Check if it's UUID format (8-4-4-4-12 hexadecimal characters)
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         
+        // Check if it's UUID format without dashes (32 hexadecimal characters)
+        const uuidNoDashRegex = /^[0-9a-f]{32}$/i;
+        
         // Check if it's a numeric ID
         const numericIdRegex = /^[0-9]{6,}$/; // At least 6 digits
         
-        return uuidRegex.test(value) || numericIdRegex.test(value);
+        return uuidRegex.test(value) || uuidNoDashRegex.test(value) || numericIdRegex.test(value);
     }
     
     async loadLogs() {
@@ -668,8 +671,11 @@ class LogObserver {
         // Truncate message for preview
         const truncatedMessage = fullMessage.length > 150 ? fullMessage.substring(0, 150) + '...' : fullMessage;
         
-        // Apply search highlighting to truncated message
-        const highlightedTruncated = this.highlightSearchTerms(truncatedMessage);
+        // Format content with newlines and JSON pretty-printing
+        const formattedTruncated = this.formatContent(truncatedMessage);
+        
+        // Apply search highlighting to formatted message
+        const highlightedTruncated = this.highlightSearchTerms(formattedTruncated);
         
         message.innerHTML = `
             <div class="message-preview">${highlightedTruncated}</div>
@@ -716,11 +722,13 @@ class LogObserver {
             const expandedMessage = document.createElement('div');
             expandedMessage.className = 'message-full-content';
             
+            // Format the full message with newlines and JSON pretty-printing
+            const formattedFullMessage = this.formatContent(fullMessage);
+            
             // Create line elements with copy icon for each line
-            const lines = fullMessage.split('\n');
+            const lines = formattedFullMessage.split('<br>');
             expandedMessage.innerHTML = lines.map(line => {
-                const escapedLine = this.escapeHtml(line);
-                const highlightedLine = this.highlightSearchTerms(escapedLine);
+                const highlightedLine = this.highlightSearchTerms(line);
                 return `<div class="message-line"><span class="line-content">${highlightedLine}<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-success">Copied!</span></span></div>`;
             }).join('');
             
@@ -729,10 +737,11 @@ class LogObserver {
             // Add event listeners for copy icons in each line
             setTimeout(() => {
                 const copyIcons = expandedMessage.querySelectorAll('.copy-icon');
+                const originalLines = fullMessage.split('\n'); // Use original unformatted lines for copying
                 copyIcons.forEach((icon, i) => {
                     icon.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        const lineContent = lines[i];
+                        const lineContent = originalLines[i] || ''; // Use original line content
                         const successElement = icon.nextElementSibling; // Copy success notification element
                         this.copyToClipboard(lineContent, successElement);
                     });
@@ -823,10 +832,12 @@ class LogObserver {
         fields.forEach(field => {
             if (field.value && field.value !== 'N/A') {
                 if (field.label === 'Message') {
+                    // Format message content with newlines and JSON pretty-printing
+                    const formattedMessage = this.formatContent(field.value);
                     content += `
                         <div class="log-detail-field">
                             <div class="log-detail-label">${field.label}:</div>
-                            <textarea class="log-detail-message-textarea" readonly>${this.escapeHtml(field.value)}</textarea>
+                            <div class="log-detail-message-content">${formattedMessage}</div>
                         </div>
                     `;
                 } else {
@@ -1040,6 +1051,21 @@ class LogObserver {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Format content with newlines and JSON pretty-printing
+    formatContent(content) {
+        if (!content) return '';
+        
+        // Try to parse as JSON first
+        try {
+            const parsed = JSON.parse(content);
+            // If successful, return pretty-printed JSON with proper escaping
+            return this.escapeHtml(JSON.stringify(parsed, null, 2)).replace(/\n/g, '<br>');
+        } catch (e) {
+            // Not JSON, handle as regular text with newline conversion
+            return this.escapeHtml(content).replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
+        }
     }
     
     // Copy content to clipboard
