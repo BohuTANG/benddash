@@ -216,7 +216,7 @@
 
 body {
     font-family: var(--font-sans);
-    background: var(--bg-primary);
+    background-color: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -699,6 +699,11 @@ body {
 .log-level-badge.debug {
     background: var(--debug-bg);
     color: var(--debug);
+}
+
+.log-level-badge.success {
+    background: var(--success-bg);
+    color: var(--success);
 }
 
 .log-timestamp {

@@ -4,6 +4,28 @@ from typing import Dict, List, Tuple, Optional, Any
 import datetime
 from urllib.parse import urlparse
 
+# Shared constants
+TIME_RANGES = {
+    '1m': 'NOW() - INTERVAL 1 MINUTE',
+    '5m': 'NOW() - INTERVAL 5 MINUTE', 
+    '15m': 'NOW() - INTERVAL 15 MINUTE',
+    '30m': 'NOW() - INTERVAL 30 MINUTE',
+    '1h': 'NOW() - INTERVAL 1 HOUR',
+    '3h': 'NOW() - INTERVAL 3 HOUR',
+    '6h': 'NOW() - INTERVAL 6 HOUR',
+    '12h': 'NOW() - INTERVAL 12 HOUR',
+    '24h': 'NOW() - INTERVAL 24 HOUR',
+    '2d': 'NOW() - INTERVAL 2 DAY'
+}
+
+LEVEL_MAP = {'warning': 'WARN', 'error': 'ERROR', 'info': 'INFO', 'debug': 'DEBUG'}
+
+BUCKET_PRECISION = {
+    '1m': 'SECOND', '5m': 'MINUTE', '15m': 'MINUTE', '30m': 'MINUTE',
+    '1h': 'MINUTE', '3h': 'HOUR', '6h': 'HOUR', '12h': 'HOUR',
+    '24h': 'HOUR', '2d': 'HOUR'
+}
+
 class DatabendClient:
     def __init__(self, dsn=None):
         self.client = None
@@ -58,9 +80,25 @@ class DatabendClient:
             print(f"❌ Query failed after {execution_time:.3f}s: {str(e)}")
             return [], [], str(e)
 
-class LogRepository:
+class BaseRepository:
+    """Base repository class with shared functionality"""
     def __init__(self, db_client: DatabendClient):
         self.db = db_client
+    
+    def _add_time_filter(self, conditions: List[str], filters: Dict, time_field: str = 'timestamp'):
+        """Add time range filter to conditions"""
+        if filters.get('timeRange') in TIME_RANGES:
+            conditions.append(f"{time_field} >= {TIME_RANGES[filters['timeRange']]}")
+    
+    def _add_search_filter(self, conditions: List[str], params: List, filters: Dict, search_field: str = 'message'):
+        """Add search filter to conditions"""
+        if filters.get('search'):
+            conditions.append(f"{search_field} LIKE ?")
+            params.append(f"%{filters['search']}%")
+
+class LogRepository(BaseRepository):
+    def __init__(self, db_client: DatabendClient):
+        super().__init__(db_client)
     
     def get_logs(self, filters: Dict) -> Dict[str, Any]:
         page = filters.get('page', 1)
@@ -82,39 +120,20 @@ class LogRepository:
         conditions = []
         params = []
         
-        # Time range mapping
-        time_ranges = {
-            '1m': 'NOW() - INTERVAL 1 MINUTE',
-            '5m': 'NOW() - INTERVAL 5 MINUTE',
-            '15m': 'NOW() - INTERVAL 15 MINUTE',
-            '30m': 'NOW() - INTERVAL 30 MINUTE',
-            '1h': 'NOW() - INTERVAL 1 HOUR',
-            '3h': 'NOW() - INTERVAL 3 HOUR',
-            '6h': 'NOW() - INTERVAL 6 HOUR',
-            '12h': 'NOW() - INTERVAL 12 HOUR',
-            '24h': 'NOW() - INTERVAL 24 HOUR',
-            '2d': 'NOW() - INTERVAL 2 DAY'
-        }
-        
         if filters.get('queryId'):
             conditions.append("query_id = ?")
             params.append(filters['queryId'])
             # Level filter still applies for query ID search
-            level_map = {'warning': 'WARN', 'error': 'ERROR', 'info': 'INFO', 'debug': 'DEBUG'}
-            if filters.get('level') and filters['level'] in level_map:
-                conditions.append(f"log_level = '{level_map[filters['level']]}'")
+            if filters.get('level') and filters['level'] in LEVEL_MAP:
+                conditions.append(f"log_level = '{LEVEL_MAP[filters['level']]}'")
         else:
-            if filters.get('timeRange') in time_ranges:
-                conditions.append(f"timestamp >= {time_ranges[filters['timeRange']]}")
+            self._add_time_filter(conditions, filters)
             
             # Level mapping
-            level_map = {'warning': 'WARN', 'error': 'ERROR', 'info': 'INFO', 'debug': 'DEBUG'}
-            if filters.get('level') and filters['level'] in level_map:
-                conditions.append(f"log_level = '{level_map[filters['level']]}'")
+            if filters.get('level') and filters['level'] in LEVEL_MAP:
+                conditions.append(f"log_level = '{LEVEL_MAP[filters['level']]}'")
             
-            if filters.get('search'):
-                conditions.append("message LIKE ?")
-                params.append(f"%{filters['search']}%")
+            self._add_search_filter(conditions, params, filters)
         
         return " AND ".join(conditions), params
     
@@ -125,12 +144,7 @@ class LogRepository:
         if is_query_id_search:
             precision = 'HOUR'
         else:
-            bucket_precision = {
-                '1m': 'SECOND', '5m': 'MINUTE', '15m': 'MINUTE', '30m': 'MINUTE',
-                '1h': 'MINUTE', '3h': 'HOUR', '6h': 'HOUR', '12h': 'HOUR',
-                '24h': 'HOUR', '2d': 'HOUR'
-            }
-            precision = bucket_precision.get(time_range, 'MINUTE')
+            precision = BUCKET_PRECISION.get(time_range, 'MINUTE')
         
         # Create parameter list combining both where clauses
         all_params = params + stats_params + params + stats_params
@@ -322,19 +336,7 @@ class LogRepository:
             precision = 'HOUR'
         else:
             # Determine bucket precision based on time range
-            bucket_precision = {
-                '1m': 'SECOND',   # For 1 minute, group by second
-                '5m': 'MINUTE',   # For 5 minutes, group by minute
-                '15m': 'MINUTE',  # For 15 minutes, group by minute
-                '30m': 'MINUTE',  # For 30 minutes, group by minute
-                '1h': 'MINUTE',   # For 1 hour, group by minute
-                '3h': 'HOUR',     # For 3 hours, group by hour
-                '6h': 'HOUR',     # For 6 hours, group by hour
-                '12h': 'HOUR',    # For 12 hours, group by hour
-                '24h': 'HOUR',    # For 24 hours, group by hour
-                '2d': 'HOUR'      # For 2 days, group by hour
-            }
-            precision = bucket_precision.get(time_range, 'MINUTE')
+            precision = BUCKET_PRECISION.get(time_range, 'MINUTE')
         
         query = f"""
         SELECT
@@ -387,9 +389,9 @@ class LogRepository:
         print(f"Final time distribution: {time_distribution}")
         return time_distribution
 
-class QueryRepository:
+class QueryRepository(BaseRepository):
     def __init__(self, db_client: DatabendClient):
-        self.db = db_client
+        super().__init__(db_client)
     
     def get_queries(self, filters: Dict) -> Dict[str, Any]:
         page = filters.get('page', 1)
@@ -406,22 +408,7 @@ class QueryRepository:
         conditions = []
         params = []
         
-        # Time range mapping
-        time_ranges = {
-            '1m': 'NOW() - INTERVAL 1 MINUTE',
-            '5m': 'NOW() - INTERVAL 5 MINUTE',
-            '15m': 'NOW() - INTERVAL 15 MINUTE',
-            '30m': 'NOW() - INTERVAL 30 MINUTE',
-            '1h': 'NOW() - INTERVAL 1 HOUR',
-            '3h': 'NOW() - INTERVAL 3 HOUR',
-            '6h': 'NOW() - INTERVAL 6 HOUR',
-            '12h': 'NOW() - INTERVAL 12 HOUR',
-            '24h': 'NOW() - INTERVAL 24 HOUR',
-            '2d': 'NOW() - INTERVAL 2 DAY'
-        }
-        
-        if filters.get('timeRange') in time_ranges:
-            conditions.append(f"query_start_time >= {time_ranges[filters['timeRange']]}")
+        self._add_time_filter(conditions, filters, time_field='query_start_time')
         
         # Query status filter
         if filters.get('status'):
@@ -436,9 +423,7 @@ class QueryRepository:
             params.append(filters['queryId'])
         
         # Text search in query_text
-        if filters.get('search'):
-            conditions.append("query_text LIKE ?")
-            params.append(f"%{filters['search']}%")
+        self._add_search_filter(conditions, params, filters, search_field='query_text')
         
         # Database filter
         if filters.get('database'):
@@ -458,12 +443,7 @@ class QueryRepository:
     
     def _get_queries_combined(self, where_clause: str, params: List, page_size: int, offset: int, time_range: str, page: int) -> Dict[str, Any]:
         """Combined query to get queries, stats, count and time distribution in one request"""
-        bucket_precision = {
-            '1m': 'SECOND', '5m': 'MINUTE', '15m': 'MINUTE', '30m': 'MINUTE',
-            '1h': 'MINUTE', '3h': 'HOUR', '6h': 'HOUR', '12h': 'HOUR',
-            '24h': 'HOUR', '2d': 'HOUR'
-        }
-        precision = bucket_precision.get(time_range, 'MINUTE')
+        precision = BUCKET_PRECISION.get(time_range, 'MINUTE')
         
         # Use params for all CTE queries
         all_params = params + params + params + params
@@ -706,26 +686,7 @@ class QueryRepository:
     def _get_time_distribution(self, where_clause: str, params: List, time_range: str) -> List[Dict]:
         """Generate time distribution data for charts"""
         # Determine bucket precision based on time range
-        bucket_precision = {
-            '1m': 'SECOND',   # For 1 minute, group by second
-            '5m': 'MINUTE',   # For 5 minutes, group by minute
-            '15m': 'MINUTE',  # For 15 minutes, group by minute
-            '30m': 'MINUTE',  # For 30 minutes, group by minute
-            '1h': 'MINUTE',   # For 1 hour, group by minute
-            '3h': 'HOUR',     # For 3 hours, group by hour
-            '6h': 'HOUR',     # For 6 hours, group by hour
-            '12h': 'HOUR',    # For 12 hours, group by hour
-            '24h': 'HOUR',    # For 24 hours, group by hour
-            '2d': 'HOUR'      # For 2 days, group by hour
-        }
-        
-        precision = bucket_precision.get(time_range, 'MINUTE')
-        
-        # Temporarily remove log_type_name filter to debug
-        # if where_clause:
-        #     where_clause += " AND log_type_name = 'QueryEnd'"
-        # else:
-        #     where_clause = "WHERE log_type_name = 'QueryEnd'"
+        precision = BUCKET_PRECISION.get(time_range, 'MINUTE')
         
         query = f"""
         SELECT

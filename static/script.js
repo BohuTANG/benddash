@@ -1,5 +1,174 @@
 // Modern Log Viewer - Clean & Minimal Design
 
+// Shared utilities for both LogObserver and QueryHistoryObserver
+class SharedUtils {
+    static copyToClipboard(text, successElement) {
+        navigator.clipboard.writeText(text).then(() => {
+            if (successElement) {
+                const originalText = successElement.textContent;
+                successElement.textContent = 'Copied!';
+                successElement.style.display = 'inline';
+                successElement.classList.add('show');
+                
+                setTimeout(() => {
+                    successElement.classList.remove('show');
+                    successElement.style.display = 'none';
+                    if (originalText !== 'Copied!') {
+                        successElement.textContent = originalText;
+                    }
+                }, 2000);
+            }
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            SharedUtils.fallbackCopyToClipboard(text);
+        });
+    }
+
+    static fallbackCopyToClipboard(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                console.log('Fallback copy successful');
+            } else {
+                console.log('Fallback copy failed');
+            }
+        } catch (err) {
+            console.error('Fallback copy failed', err);
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }
+
+    static formatTimestamp(timestamp, detailed = false) {
+        if (!timestamp) return 'N/A';
+        
+        const date = new Date(timestamp);
+        
+        if (detailed) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+            
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+        } else {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${hours}:${minutes}:${seconds}`;
+        }
+    }
+
+    static formatNumber(num) {
+        return new Intl.NumberFormat().format(num);
+    }
+
+    static escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    static debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    static prettifySQL(sql) {
+        if (!sql) return '';
+        
+        let formatted = sql.replace(/\b(SELECT|FROM|WHERE|JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|OUTER JOIN|GROUP BY|ORDER BY|HAVING|UNION|UNION ALL)\b/gi, '\n$1');
+        formatted = formatted.replace(/\b(WITH)\b/gi, '$1\n');
+        formatted = formatted.replace(/,\s*(?=\w)/g, ',\n    ');
+        formatted = formatted.replace(/\n\s*\n/g, '\n').trim();
+        
+        let lines = formatted.split('\n');
+        let indentLevel = 0;
+        
+        lines = lines.map((line, index) => {
+            const trimmed = line.trim();
+            if (!trimmed) return '';
+            
+            if (/^\s*\)/.test(trimmed)) {
+                indentLevel = Math.max(0, indentLevel - 1);
+            }
+            
+            const indented = '    '.repeat(indentLevel) + trimmed;
+            
+            if (/\(\s*$/.test(trimmed) || /\b(SELECT|FROM|WHERE|WITH)\b/i.test(trimmed)) {
+                indentLevel++;
+            }
+            
+            return indented;
+        });
+        
+        return lines.join('\n');
+    }
+
+    static createCopyButton(text, buttonText = 'Copy', className = 'copy-all-btn') {
+        const copyBtn = document.createElement('button');
+        copyBtn.className = className;
+        copyBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            ${buttonText}
+        `;
+        
+        const copySuccess = document.createElement('span');
+        copySuccess.className = 'copy-success';
+        copySuccess.textContent = 'Copied!';
+        copySuccess.style.display = 'none';
+        copyBtn.appendChild(copySuccess);
+        
+        copyBtn.onclick = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    copySuccess.style.display = 'inline';
+                    copySuccess.style.opacity = '1';
+                    setTimeout(() => {
+                        copySuccess.style.opacity = '0';
+                        setTimeout(() => {
+                            copySuccess.style.display = 'none';
+                        }, 200);
+                    }, 1500);
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                    SharedUtils.fallbackCopyToClipboard(text);
+                });
+            } else {
+                SharedUtils.fallbackCopyToClipboard(text);
+            }
+        };
+        
+        return copyBtn;
+    }
+}
+
 // Universal UI Handler Class
 class UIHandler {
     // Universal refresh button handler
@@ -307,7 +476,7 @@ class LogObserver {
         // Search input
         const searchInput = document.getElementById('search-input');
         if (searchInput) {
-            searchInput.addEventListener('input', this.debounce((e) => {
+            searchInput.addEventListener('input', SharedUtils.debounce((e) => {
                 const value = e.target.value.trim();
                 this.searchQuery = value;
                 
@@ -411,7 +580,7 @@ class LogObserver {
         // DSN input real-time parser
         const dsnInput = document.getElementById('dsn-input');
         if (dsnInput) {
-            dsnInput.addEventListener('input', this.debounce((e) => {
+            dsnInput.addEventListener('input', SharedUtils.debounce((e) => {
                 this.updateDsnPreview(e.target.value);
             }, 200));
         }
@@ -607,7 +776,7 @@ class LogObserver {
         // Timestamp
         const timestamp = document.createElement('div');
         timestamp.className = 'log-timestamp';
-        timestamp.textContent = this.formatTimestamp(log.timestamp);
+        timestamp.textContent = SharedUtils.formatTimestamp(log.timestamp);
 
         // Query ID with copy icon
         const queryId = document.createElement('div');
@@ -637,7 +806,7 @@ class LogObserver {
             // Add click event for copy
             copyIcon.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.copyToClipboard(queryIdText, copySuccess);
+                SharedUtils.copyToClipboard(queryIdText, copySuccess);
             });
             
             // Add click event for query ID text to filter by this query ID
@@ -718,35 +887,25 @@ class LogObserver {
         expandedContent.style.display = 'none';
         
         if (fullMessage.length > 150) {
-            // Add message content without line numbers
+            // Add message content with copy entire message functionality
             const expandedMessage = document.createElement('div');
             expandedMessage.className = 'message-full-content';
             
-            // Format the full message with newlines and JSON pretty-printing
-            const formattedFullMessage = this.formatContent(fullMessage);
+            // Add copy entire message button using SharedUtils
+            const copyAllBtn = SharedUtils.createCopyButton(fullMessage, 'Copy All');
             
-            // Create line elements with copy icon for each line
-            const lines = formattedFullMessage.split('<br>');
-            expandedMessage.innerHTML = lines.map(line => {
-                const highlightedLine = this.highlightSearchTerms(line);
-                return `<div class="message-line"><span class="line-content">${highlightedLine}<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-success">Copied!</span></span></div>`;
-            }).join('');
+            expandedMessage.appendChild(copyAllBtn);
             
+            // Create a textarea for the full message display
+            const messageTextarea = document.createElement('textarea');
+            messageTextarea.className = 'log-detail-message-textarea';
+            messageTextarea.value = fullMessage;
+            messageTextarea.readOnly = true;
+            messageTextarea.style.height = '200px';
+            messageTextarea.style.marginTop = '2rem';
+            
+            expandedMessage.appendChild(messageTextarea);
             expandedContent.appendChild(expandedMessage);
-            
-            // Add event listeners for copy icons in each line
-            setTimeout(() => {
-                const copyIcons = expandedMessage.querySelectorAll('.copy-icon');
-                const originalLines = fullMessage.split('\n'); // Use original unformatted lines for copying
-                copyIcons.forEach((icon, i) => {
-                    icon.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const lineContent = originalLines[i] || ''; // Use original line content
-                        const successElement = icon.nextElementSibling; // Copy success notification element
-                        this.copyToClipboard(lineContent, successElement);
-                    });
-                });
-            }, 0);
             
             // Add expanded meta information to expanded content
             const expandedMeta = meta.cloneNode(true);
@@ -902,7 +1061,7 @@ class LogObserver {
         Object.keys(this.stats).forEach(key => {
             const element = document.getElementById(`${key}-count`);
             if (element) {
-                element.textContent = this.formatNumber(this.stats[key]);
+                element.textContent = SharedUtils.formatNumber(this.stats[key]);
             }
         });
     }
@@ -917,7 +1076,7 @@ class LogObserver {
             if (total === 0) {
                 logsCount.textContent = 'No logs found';
             } else {
-                logsCount.textContent = `Showing ${start}-${end} of ${this.formatNumber(total)} logs`;
+                logsCount.textContent = `Showing ${start}-${end} of ${SharedUtils.formatNumber(total)} logs`;
             }
         }
     }
@@ -1069,19 +1228,6 @@ class LogObserver {
     }
     
     // Copy content to clipboard
-    copyToClipboard(text, successElement) {
-        navigator.clipboard.writeText(text).then(() => {
-            // Show copy success notification
-            successElement.classList.add('show');
-            
-            // Remove notification after a delay
-            setTimeout(() => {
-                successElement.classList.remove('show');
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy text: ', err);
-        });
-    }
 
     filterByQueryId(queryId) {
         // Set the search input to the query ID
@@ -1114,17 +1260,6 @@ class LogObserver {
         }
     }
 
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
 
     initPageSizeSelector() {
         const pageSizeSelect = document.getElementById('page-size');
@@ -1496,7 +1631,7 @@ class QueryHistoryObserver {
         // Search input
         const searchInput = document.getElementById('query-search-input');
         if (searchInput) {
-            searchInput.addEventListener('input', this.debounce((e) => {
+            searchInput.addEventListener('input', SharedUtils.debounce((e) => {
                 this.searchQuery = e.target.value.trim();
                 this.currentPage = 1; // Reset to first page
                 this.loadQueries();
@@ -1724,7 +1859,7 @@ class QueryHistoryObserver {
             // Add click event for copy
             copyIcon.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.copyToClipboard(queryIdText, copySuccess);
+                SharedUtils.copyToClipboard(queryIdText, copySuccess);
             });
             
             // Add click event for query ID text to jump to log history
@@ -1750,18 +1885,29 @@ class QueryHistoryObserver {
         const content = document.createElement('div');
         content.className = 'log-content';
 
-        // SQL Query with truncation
+        // SQL Query with enhanced formatting and metadata
         const message = document.createElement('div');
-        message.className = 'log-message';
+        message.className = 'log-message query-message-enhanced';
         const fullQuery = query.query_text || 'No query text';
         
-        // Truncate query for preview
-        const truncatedQuery = fullQuery.length > 150 ? fullQuery.substring(0, 150) + '...' : fullQuery;
+        // Create compact query preview with type indicator
+        const queryType = this.extractQueryType(fullQuery);
+        const truncatedQuery = fullQuery.length > 120 ? fullQuery.substring(0, 120) + '...' : fullQuery;
+        // For preview, use plain text with only search highlighting
+        const highlightedTruncated = this.highlightSearchTerms(SharedUtils.escapeHtml(truncatedQuery));
         
-        // Apply search highlighting to truncated query
-        const highlightedTruncated = this.highlightSearchTerms(this.escapeHtml(truncatedQuery));
+        // Enhanced preview with query type badge and performance indicators
+        const performanceIndicator = this.getPerformanceIndicator(query);
+        const rowsScanned = query.scan_rows ? `${SharedUtils.formatNumber(query.scan_rows)} rows` : '';
+        const dataSize = query.result_bytes ? this.formatBytes(query.result_bytes) : '';
         
         message.innerHTML = `
+            <div class="query-header">
+                <span class="query-type-badge ${queryType.toLowerCase()}">${queryType}</span>
+                ${performanceIndicator}
+                ${rowsScanned ? `<span class="query-stat-mini">📊 ${rowsScanned}</span>` : ''}
+                ${dataSize ? `<span class="query-stat-mini">💾 ${dataSize}</span>` : ''}
+            </div>
             <div class="message-preview">${highlightedTruncated}</div>
         `;
 
@@ -1787,14 +1933,27 @@ class QueryHistoryObserver {
         meta.className = 'log-meta';
         meta.style.display = 'none';
 
-        // Build meta items array and set innerHTML once
+        // Enhanced meta information with better formatting and organization
         const metaItems = [];
         const startTime = query.query_start_time || query.start_time || query.event_time;
-        if (startTime) metaItems.push(`<div class="log-meta-item"><span>Start Time:</span> <span>${this.formatTimestamp(startTime, true)}</span></div>`);
-        if (query.sql_user) metaItems.push(`<div class="log-meta-item"><span>User:</span> <span>${this.escapeHtml(query.sql_user)}</span></div>`);
-        if (query.current_database) metaItems.push(`<div class="log-meta-item"><span>Database:</span> <span>${this.escapeHtml(query.current_database)}</span></div>`);
-        if (query.duration_ms) metaItems.push(`<div class="log-meta-item"><span>Duration:</span> <span>${query.duration_ms.toLocaleString()} ms</span></div>`);
-        if (query.exception_text) metaItems.push(`<div class="log-meta-item"><span>Error:</span> <span>${this.escapeHtml(query.exception_text)}</span></div>`);
+        
+        // Core execution info
+        if (startTime) metaItems.push(`<div class="log-meta-item execution"><span class="meta-icon">🕒</span><span class="meta-label">Start Time:</span> <span class="meta-value">${this.formatTimestamp(startTime, true)}</span></div>`);
+        if (query.duration_ms) metaItems.push(`<div class="log-meta-item performance"><span class="meta-icon">⏱️</span><span class="meta-label">Duration:</span> <span class="meta-value">${query.duration_ms.toLocaleString()} ms</span></div>`);
+        
+        // User context
+        if (query.sql_user) metaItems.push(`<div class="log-meta-item context"><span class="meta-icon">👤</span><span class="meta-label">User:</span> <span class="meta-value">${this.escapeHtml(query.sql_user)}</span></div>`);
+        if (query.current_database) metaItems.push(`<div class="log-meta-item context"><span class="meta-icon">🗄️</span><span class="meta-label">Database:</span> <span class="meta-value">${this.escapeHtml(query.current_database)}</span></div>`);
+        
+        // Performance metrics
+        if (query.result_rows) metaItems.push(`<div class="log-meta-item performance"><span class="meta-icon">📊</span><span class="meta-label">Result Rows:</span> <span class="meta-value">${this.formatNumber(query.result_rows)}</span></div>`);
+        if (query.result_bytes) metaItems.push(`<div class="log-meta-item performance"><span class="meta-icon">💾</span><span class="meta-label">Result Size:</span> <span class="meta-value">${this.formatBytes(query.result_bytes)}</span></div>`);
+        if (query.scan_rows) metaItems.push(`<div class="log-meta-item performance"><span class="meta-icon">🔍</span><span class="meta-label">Scanned Rows:</span> <span class="meta-value">${this.formatNumber(query.scan_rows)}</span></div>`);
+        if (query.scan_bytes) metaItems.push(`<div class="log-meta-item performance"><span class="meta-icon">💽</span><span class="meta-label">Scanned Data:</span> <span class="meta-value">${this.formatBytes(query.scan_bytes)}</span></div>`);
+        
+        // Error information
+        if (query.exception_text) metaItems.push(`<div class="log-meta-item error"><span class="meta-icon">⚠️</span><span class="meta-label">Error:</span> <span class="meta-value error-text">${this.escapeHtml(query.exception_text)}</span></div>`);
+        
         meta.innerHTML = metaItems.join('');
 
         content.appendChild(message);
@@ -1805,32 +1964,74 @@ class QueryHistoryObserver {
         expandedContent.style.display = 'none';
         
         if (fullQuery.length > 150) {
-            // Add query content without line numbers
+            // Enhanced SQL content with syntax highlighting and better formatting
             const expandedMessage = document.createElement('div');
-            expandedMessage.className = 'message-full-content';
+            expandedMessage.className = 'message-full-content sql-formatted';
             
-            // Create line elements with copy icon for each line
-            const lines = fullQuery.split('\n');
-            expandedMessage.innerHTML = lines.map(line => {
-                const escapedLine = this.escapeHtml(line);
-                const highlightedLine = this.highlightSearchTerms(escapedLine);
-                return `<div class="message-line"><span class="line-content">${highlightedLine}<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-success">Copied!</span></span></div>`;
-            }).join('');
+            // Add copy entire query button
+            const copyAllBtn = document.createElement('button');
+            copyAllBtn.className = 'copy-all-btn';
+            copyAllBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy Query
+            `;
+            
+            // Create copy success element separately  
+            const copySuccess = document.createElement('span');
+            copySuccess.className = 'copy-success';
+            copySuccess.textContent = 'Copied!';
+            copySuccess.style.display = 'none';
+            copyAllBtn.appendChild(copySuccess);
+            
+            copyAllBtn.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                
+                // Direct clipboard API call with better error handling
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(fullQuery).then(() => {
+                        copySuccess.style.display = 'inline';
+                        copySuccess.style.opacity = '1';
+                        setTimeout(() => {
+                            copySuccess.style.opacity = '0';
+                            setTimeout(() => {
+                                copySuccess.style.display = 'none';
+                            }, 200);
+                        }, 1500);
+                    }).catch(err => {
+                        console.error('Failed to copy: ', err);
+                        // Fallback to old method
+                        this.fallbackCopyToClipboard(fullQuery);
+                    });
+                } else {
+                    // Fallback for older browsers
+                    this.fallbackCopyToClipboard(fullQuery);
+                }
+            };
+            expandedMessage.appendChild(copyAllBtn);
+            
+            // Create a formatted SQL display with proper formatting
+            const sqlContainer = document.createElement('div');
+            sqlContainer.className = 'sql-container';
+            
+            const sqlPre = document.createElement('pre');
+            sqlPre.className = 'sql-code';
+            sqlPre.style.whiteSpace = 'pre-wrap';
+            sqlPre.style.userSelect = 'text';
+            sqlPre.style.cursor = 'text';
+            
+            // Format SQL with proper indentation and line breaks
+            const formattedSQL = SharedUtils.prettifySQL(fullQuery);
+            sqlPre.textContent = formattedSQL;
+            
+            sqlContainer.appendChild(sqlPre);
+            expandedMessage.appendChild(sqlContainer);
             
             expandedContent.appendChild(expandedMessage);
             
-            // Add event listeners for copy icons in each line
-            setTimeout(() => {
-                const copyIcons = expandedMessage.querySelectorAll('.copy-icon');
-                copyIcons.forEach((icon, i) => {
-                    icon.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const lineContent = lines[i];
-                        const successElement = icon.nextElementSibling; // Copy success notification element
-                        this.copyToClipboard(lineContent, successElement);
-                    });
-                });
-            }, 0);
             
             // Add expanded meta information to expanded content
             const expandedMeta = meta.cloneNode(true);
@@ -1857,6 +2058,15 @@ class QueryHistoryObserver {
                 
                 if (!e.target.closest('.expand-icon-btn') && !(isExpanded && clickingExpandedContent)) {
                     this.toggleQueryExpansion(entry, expandBtn);
+                }
+            };
+        } else {
+            // For short queries, add click handler to show modal with detailed information
+            entry.style.cursor = 'pointer';
+            entry.onclick = (e) => {
+                // Don't trigger if clicking on copy icons or query ID links
+                if (!e.target.closest('.copy-icon') && !e.target.closest('.query-id-clickable')) {
+                    this.showQueryDetails(query);
                 }
             };
         }
@@ -1987,7 +2197,7 @@ class QueryHistoryObserver {
                 if (key === 'avgDuration') {
                     element.textContent = Math.round(this.stats[key]).toLocaleString();
                 } else {
-                    element.textContent = this.formatNumber(this.stats[key]);
+                    element.textContent = SharedUtils.formatNumber(this.stats[key]);
                 }
             }
         });
@@ -2003,7 +2213,7 @@ class QueryHistoryObserver {
             if (total === 0) {
                 queriesCount.textContent = 'No queries found';
             } else {
-                queriesCount.textContent = `Showing ${start}-${end} of ${this.formatNumber(total)} queries`;
+                queriesCount.textContent = `Showing ${start}-${end} of ${SharedUtils.formatNumber(total)} queries`;
             }
         }
     }
@@ -2168,31 +2378,7 @@ class QueryHistoryObserver {
     }
     
     // Copy content to clipboard
-    copyToClipboard(text, successElement) {
-        navigator.clipboard.writeText(text).then(() => {
-            // Show copy success notification
-            successElement.classList.add('show');
-            
-            // Remove notification after a delay
-            setTimeout(() => {
-                successElement.classList.remove('show');
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy text: ', err);
-        });
-    }
 
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
 
     // Search highlighting function
     highlightSearchTerms(text) {
@@ -2310,6 +2496,181 @@ class QueryHistoryObserver {
         
         chartContainer.parentNode.appendChild(labelsContainer);
     }
+
+    // Helper methods for enhanced query formatting
+    extractQueryType(query) {
+        if (!query) return 'UNKNOWN';
+        const upperQuery = query.toUpperCase().trim();
+        if (upperQuery.startsWith('SELECT')) return 'SELECT';
+        if (upperQuery.startsWith('INSERT')) return 'INSERT';
+        if (upperQuery.startsWith('UPDATE')) return 'UPDATE';
+        if (upperQuery.startsWith('DELETE')) return 'DELETE';
+        if (upperQuery.startsWith('CREATE')) return 'CREATE';
+        if (upperQuery.startsWith('DROP')) return 'DROP';
+        if (upperQuery.startsWith('ALTER')) return 'ALTER';
+        if (upperQuery.startsWith('SHOW')) return 'SHOW';
+        if (upperQuery.startsWith('DESCRIBE')) return 'DESCRIBE';
+        if (upperQuery.startsWith('EXPLAIN')) return 'EXPLAIN';
+        return 'QUERY';
+    }
+
+    getPerformanceIndicator(query) {
+        if (!query.duration_ms) return '';
+        
+        const duration = query.duration_ms;
+        let indicator = '';
+        let className = '';
+        
+        if (duration < 100) {
+            indicator = '🟢';
+            className = 'fast';
+        } else if (duration < 1000) {
+            indicator = '🟡';
+            className = 'medium';
+        } else if (duration < 5000) {
+            indicator = '🟠';
+            className = 'slow';
+        } else {
+            indicator = '🔴';
+            className = 'very-slow';
+        }
+        
+        return `<span class="performance-indicator ${className}" title="Duration: ${duration}ms">${indicator} ${duration}ms</span>`;
+    }
+
+    formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toLocaleString();
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    formatSQL(sql, useTextArea = false) {
+        if (!sql) return '';
+        
+        if (useTextArea) {
+            // Return plain SQL without highlighting for textarea display
+            return sql;
+        }
+        
+        // First escape HTML for safe processing
+        let formatted = this.escapeHtml(sql);
+        
+        // Apply SQL syntax highlighting and formatting
+        formatted = this.applySQLSyntaxHighlighting(formatted);
+        
+        return formatted;
+    }
+
+    applySQLSyntaxHighlighting(sql) {
+        // SQL Keywords (case insensitive)
+        const keywords = [
+            'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL OUTER JOIN',
+            'GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'OFFSET', 'UNION', 'UNION ALL',
+            'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'CREATE', 'DROP', 'ALTER',
+            'TABLE', 'INDEX', 'DATABASE', 'SCHEMA', 'VIEW', 'PROCEDURE', 'FUNCTION',
+            'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'IS NULL', 'IS NOT NULL',
+            'AS', 'ON', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'IF', 'DISTINCT',
+            'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'ISNULL', 'CAST', 'CONVERT',
+            'PRIMARY KEY', 'FOREIGN KEY', 'REFERENCES', 'CONSTRAINT', 'DEFAULT',
+            'WITH', 'RECURSIVE', 'CTE', 'OVER', 'PARTITION BY', 'ROW_NUMBER', 'RANK'
+        ];
+        
+        // Data types
+        const dataTypes = [
+            'INT', 'INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'DECIMAL', 'NUMERIC', 'FLOAT', 'REAL', 'DOUBLE',
+            'VARCHAR', 'CHAR', 'TEXT', 'NVARCHAR', 'NCHAR', 'STRING',
+            'DATE', 'TIME', 'DATETIME', 'TIMESTAMP', 'YEAR',
+            'BOOLEAN', 'BOOL', 'BIT',
+            'BLOB', 'BINARY', 'VARBINARY',
+            'JSON', 'UUID', 'ARRAY', 'MAP'
+        ];
+        
+        let highlighted = sql;
+        
+        // Highlight SQL keywords
+        keywords.forEach(keyword => {
+            // Use word boundaries and case insensitive matching
+            const regex = new RegExp(`\\b${keyword.replace(/\s+/g, '\\s+')}\\b`, 'gi');
+            highlighted = highlighted.replace(regex, `<span class="sql-keyword">${keyword}</span>`);
+        });
+        
+        // Highlight data types
+        dataTypes.forEach(type => {
+            const regex = new RegExp(`\\b${type}\\b`, 'gi');
+            highlighted = highlighted.replace(regex, `<span class="sql-datatype">${type}</span>`);
+        });
+        
+        // Highlight string literals (single quotes)
+        highlighted = highlighted.replace(/'([^'\\\\]|\\\\.)*'/g, '<span class="sql-string">$&</span>');
+        
+        // Highlight string literals (double quotes)  
+        highlighted = highlighted.replace(/"([^"\\\\]|\\\\.)*"/g, '<span class="sql-string">$&</span>');
+        
+        // Highlight numbers
+        highlighted = highlighted.replace(/\b\d+\.?\d*\b/g, '<span class="sql-number">$&</span>');
+        
+        // Highlight single-line comments (-- comments)
+        highlighted = highlighted.replace(/--.*$/gm, '<span class="sql-comment">$&</span>');
+        
+        // Highlight multi-line comments (/* comments */)
+        highlighted = highlighted.replace(/\/\*[\s\S]*?\*\//g, '<span class="sql-comment">$&</span>');
+        
+        // Highlight operators
+        const operators = ['=', '!=', '<>', '<', '>', '<=', '>=', '+', '-', '*', '/', '%', '||'];
+        operators.forEach(op => {
+            const escapedOp = op.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(\\s|^)(${escapedOp})(\\s|$)`, 'g');
+            highlighted = highlighted.replace(regex, '$1<span class="sql-operator">$2</span>$3');
+        });
+        
+        // Better formatting with proper indentation
+        highlighted = this.formatSQLStructure(highlighted);
+        
+        return highlighted;
+    }
+    
+    formatSQLStructure(sql) {
+        // Split into lines for processing
+        let lines = sql.split('\n');
+        let indentLevel = 0;
+        const INDENT_SIZE = 2;
+        
+        lines = lines.map(line => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) return '';
+            
+            // Decrease indent for certain closing keywords
+            if (/^\s*(\)|END\b)/i.test(trimmedLine)) {
+                indentLevel = Math.max(0, indentLevel - 1);
+            }
+            
+            const indentedLine = ' '.repeat(indentLevel * INDENT_SIZE) + trimmedLine;
+            
+            // Increase indent for certain opening keywords
+            if (/\b(SELECT|FROM|WHERE|JOIN|GROUP\s+BY|ORDER\s+BY|HAVING|CASE|WHEN)\b/i.test(trimmedLine) ||
+                /\($/.test(trimmedLine)) {
+                indentLevel++;
+            }
+            
+            return indentedLine;
+        });
+        
+        return lines.join('\n');
+    }
+
+    // Add a simple SQL prettifier function
+
 }
 
 // Initialize application
@@ -2338,6 +2699,281 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add additional CSS styles via proper style element creation
     const additionalStyles = document.createElement('style');
     additionalStyles.textContent = `
+    /* Enhanced Query History Styles */
+    .query-message-enhanced {
+        border-left: 3px solid transparent;
+    }
+    
+    .query-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .query-type-badge {
+        padding: 0.125rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: white;
+        min-width: 60px;
+        text-align: center;
+    }
+    
+    .query-type-badge.select { background-color: #10b981; }
+    .query-type-badge.insert { background-color: #3b82f6; }
+    .query-type-badge.update { background-color: #f59e0b; }
+    .query-type-badge.delete { background-color: #ef4444; }
+    .query-type-badge.create { background-color: #8b5cf6; }
+    .query-type-badge.drop { background-color: #dc2626; }
+    .query-type-badge.alter { background-color: #f97316; }
+    .query-type-badge.show { background-color: #06b6d4; }
+    .query-type-badge.describe { background-color: #84cc16; }
+    .query-type-badge.explain { background-color: #6366f1; }
+    .query-type-badge.query { background-color: #6b7280; }
+    
+    .performance-indicator {
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .performance-indicator.fast { background-color: #dcfce7; color: #166534; }
+    .performance-indicator.medium { background-color: #fef3c7; color: #92400e; }
+    .performance-indicator.slow { background-color: #fed7aa; color: #9a3412; }
+    .performance-indicator.very-slow { background-color: #fecaca; color: #991b1b; }
+    
+    .query-stat-mini {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        background-color: var(--bg-tertiary);
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+    }
+    
+    .sql-formatted {
+        position: relative;
+    }
+    
+    .copy-all-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        z-index: 10;
+        transition: all 0.2s;
+    }
+    
+    .copy-all-btn:hover {
+        background-color: var(--bg-secondary);
+        border-color: var(--border-hover);
+    }
+    
+    .copy-success {
+        margin-left: 0.25rem;
+        color: var(--success);
+        font-weight: 500;
+        transition: opacity 0.2s;
+    }
+    
+    .sql-container {
+        margin-top: 2rem;
+        position: relative;
+    }
+    
+    .sql-code {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-light);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        margin: 0;
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+        line-height: 1.5;
+        overflow-x: auto;
+        white-space: pre-wrap;
+    }
+    
+    /* SQL Syntax Highlighting Styles */
+    .sql-keyword {
+        color: #0066cc;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .sql-datatype {
+        color: #8b5a7f;
+        font-weight: 500;
+    }
+    
+    .sql-string {
+        color: #d73a49;
+        font-style: italic;
+    }
+    
+    .sql-number {
+        color: #005cc5;
+        font-weight: 500;
+    }
+    
+    .sql-comment {
+        color: #6a737d;
+        font-style: italic;
+    }
+    
+    .sql-operator {
+        color: #d73a49;
+        font-weight: 600;
+    }
+    
+    /* Enhanced message preview with SQL highlighting */
+    .message-preview .sql-keyword {
+        color: #0066cc;
+        font-weight: 600;
+    }
+    
+    .message-preview .sql-string {
+        color: #d73a49;
+    }
+    
+    .message-preview .sql-number {
+        color: #005cc5;
+    }
+    
+    /* Dark mode SQL syntax colors */
+    @media (prefers-color-scheme: dark) {
+        .sql-keyword {
+            color: #79c0ff;
+        }
+        
+        .sql-datatype {
+            color: #d2a8ff;
+        }
+        
+        .sql-string {
+            color: #a5d6ff;
+        }
+        
+        .sql-number {
+            color: #79c0ff;
+        }
+        
+        .sql-comment {
+            color: #8b949e;
+        }
+        
+        .sql-operator {
+            color: #ff7b72;
+        }
+        
+        .message-preview .sql-keyword {
+            color: #79c0ff;
+        }
+        
+        .message-preview .sql-string {
+            color: #a5d6ff;
+        }
+        
+        .message-preview .sql-number {
+            color: #79c0ff;
+        }
+    }
+    
+    .log-meta-item {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.375rem 0;
+        border-bottom: 1px solid var(--border-light);
+    }
+    
+    .log-meta-item:last-child {
+        border-bottom: none;
+    }
+    
+    .meta-icon {
+        font-size: 0.875rem;
+        width: 1.25rem;
+        text-align: center;
+    }
+    
+    .meta-label {
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+    
+    .meta-value {
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        text-align: right;
+    }
+    
+    .meta-value.error-text {
+        color: var(--error);
+        font-weight: 500;
+    }
+    
+    .log-meta-item.performance {
+        background-color: var(--bg-tertiary);
+        border-radius: 4px;
+        padding: 0.375rem 0.5rem;
+        margin: 0.125rem 0;
+    }
+    
+    .log-meta-item.context {
+        background-color: var(--bg-secondary);
+        border-radius: 4px;
+        padding: 0.375rem 0.5rem;
+        margin: 0.125rem 0;
+    }
+    
+    .log-meta-item.error {
+        background-color: var(--error-bg, #fef2f2);
+        border-radius: 4px;
+        padding: 0.375rem 0.5rem;
+        margin: 0.125rem 0;
+        border: 1px solid var(--error-border, #fecaca);
+    }
+    
+    @media (max-width: 768px) {
+        .query-header {
+            flex-wrap: wrap;
+        }
+        
+        .query-stat-mini {
+            font-size: 0.6875rem;
+        }
+        
+        .log-meta-item {
+            grid-template-columns: auto 1fr;
+            gap: 0.25rem;
+        }
+        
+        .meta-value {
+            grid-column: 1 / -1;
+            text-align: left;
+            margin-top: 0.25rem;
+        }
+    }
+
     .log-detail-fields {
         display: grid;
         gap: 1rem;
