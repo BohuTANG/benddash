@@ -519,7 +519,6 @@ class LogObserver {
                 this.setAutoRefresh(e.target.value);
             });
         }
-        // View toggles removed
 
         // Modal close
         const modalClose = document.getElementById('modal-close');
@@ -1160,8 +1159,6 @@ class LogObserver {
         }
     }
 
-    // Removed auto-refresh related functions as they are no longer needed
-
     showError(message) {
         console.error('LogObserver Error:', message);
         // You could implement a toast notification system here
@@ -1173,8 +1170,6 @@ class LogObserver {
         filters.forEach(filter => filter.classList.remove('active'));
         activeElement.classList.add('active');
     }
-
-    // View toggle function removed
 
     formatTimestamp(timestamp, detailed = false) {
         if (!timestamp) return 'N/A';
@@ -1226,8 +1221,6 @@ class LogObserver {
             return this.escapeHtml(content).replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
         }
     }
-    
-    // Copy content to clipboard
 
     filterByQueryId(queryId) {
         // Set the search input to the query ID
@@ -1259,7 +1252,6 @@ class LogObserver {
             }, intervalMs);
         }
     }
-
 
     initPageSizeSelector() {
         const pageSizeSelect = document.getElementById('page-size');
@@ -1472,12 +1464,6 @@ class LogObserver {
             connectionMessage.style.display = 'block';
         }
     }
-
-    // Removed refresh dropdown related functions as they are no longer needed
-
-    // Removed setAutoRefreshInterval function as it is no longer needed
-    
-    // Removed getIntervalText function as it is no longer needed
 
     // Search highlighting function
     highlightSearchTerms(text) {
@@ -1825,11 +1811,11 @@ class QueryHistoryObserver {
         statusBadge.className = `log-level-badge ${status}`;
         statusBadge.textContent = status.toUpperCase();
 
-        // Start Time (显示查询开始时间)
+        // Start Time (query start time)
         const timestamp = document.createElement('div');
         timestamp.className = 'log-timestamp';
         timestamp.textContent = this.formatTimestamp(query.query_start_time || query.start_time || query.event_time);
-        timestamp.title = 'Query Start Time'; // 添加提示文本
+        timestamp.title = 'Query Start Time'; // tooltip text
 
         // Query ID with copy icon
         const queryId = document.createElement('div');
@@ -2376,9 +2362,6 @@ class QueryHistoryObserver {
         div.textContent = text;
         return div.innerHTML;
     }
-    
-    // Copy content to clipboard
-
 
     // Search highlighting function
     highlightSearchTerms(text) {
@@ -2668,9 +2651,6 @@ class QueryHistoryObserver {
         
         return lines.join('\n');
     }
-
-    // Add a simple SQL prettifier function
-
 }
 
 // Initialize application
@@ -2684,9 +2664,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize query history observer
     window.queryHistoryObserver = new QueryHistoryObserver();
     
-    // Auto refresh functionality is now handled by the individual observers
-    // No need for manual refresh buttons
-    
     // Ensure initial tab state is correct
     const activeTabButton = document.querySelector('.tab-button.active');
     if (activeTabButton) {
@@ -2695,375 +2672,4 @@ document.addEventListener('DOMContentLoaded', function() {
         // Default to logs tab if no active tab is set
         window.tabManager.setActiveTab('logs');
     }
-    
-    // Add additional CSS styles via proper style element creation
-    const additionalStyles = document.createElement('style');
-    additionalStyles.textContent = `
-    /* Enhanced Query History Styles */
-    .query-message-enhanced {
-        border-left: 3px solid transparent;
-    }
-    
-    .query-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.5rem;
-        flex-wrap: wrap;
-    }
-    
-    .query-type-badge {
-        padding: 0.125rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        color: white;
-        min-width: 60px;
-        text-align: center;
-    }
-    
-    .query-type-badge.select { background-color: #10b981; }
-    .query-type-badge.insert { background-color: #3b82f6; }
-    .query-type-badge.update { background-color: #f59e0b; }
-    .query-type-badge.delete { background-color: #ef4444; }
-    .query-type-badge.create { background-color: #8b5cf6; }
-    .query-type-badge.drop { background-color: #dc2626; }
-    .query-type-badge.alter { background-color: #f97316; }
-    .query-type-badge.show { background-color: #06b6d4; }
-    .query-type-badge.describe { background-color: #84cc16; }
-    .query-type-badge.explain { background-color: #6366f1; }
-    .query-type-badge.query { background-color: #6b7280; }
-    
-    .performance-indicator {
-        padding: 0.125rem 0.375rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
-    
-    .performance-indicator.fast { background-color: #dcfce7; color: #166534; }
-    .performance-indicator.medium { background-color: #fef3c7; color: #92400e; }
-    .performance-indicator.slow { background-color: #fed7aa; color: #9a3412; }
-    .performance-indicator.very-slow { background-color: #fecaca; color: #991b1b; }
-    
-    .query-stat-mini {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        background-color: var(--bg-tertiary);
-        padding: 0.125rem 0.375rem;
-        border-radius: 4px;
-    }
-    
-    .sql-formatted {
-        position: relative;
-    }
-    
-    .copy-all-btn {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        background: var(--bg-primary);
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        padding: 0.375rem 0.75rem;
-        font-size: 0.75rem;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-        z-index: 10;
-        transition: all 0.2s;
-    }
-    
-    .copy-all-btn:hover {
-        background-color: var(--bg-secondary);
-        border-color: var(--border-hover);
-    }
-    
-    .copy-success {
-        margin-left: 0.25rem;
-        color: var(--success);
-        font-weight: 500;
-        transition: opacity 0.2s;
-    }
-    
-    .sql-container {
-        margin-top: 2rem;
-        position: relative;
-    }
-    
-    .sql-code {
-        background: var(--bg-tertiary);
-        border: 1px solid var(--border-light);
-        border-radius: var(--radius-md);
-        padding: 1rem;
-        margin: 0;
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-        line-height: 1.5;
-        overflow-x: auto;
-        white-space: pre-wrap;
-    }
-    
-    /* SQL Syntax Highlighting Styles */
-    .sql-keyword {
-        color: #0066cc;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-    
-    .sql-datatype {
-        color: #8b5a7f;
-        font-weight: 500;
-    }
-    
-    .sql-string {
-        color: #d73a49;
-        font-style: italic;
-    }
-    
-    .sql-number {
-        color: #005cc5;
-        font-weight: 500;
-    }
-    
-    .sql-comment {
-        color: #6a737d;
-        font-style: italic;
-    }
-    
-    .sql-operator {
-        color: #d73a49;
-        font-weight: 600;
-    }
-    
-    /* Enhanced message preview with SQL highlighting */
-    .message-preview .sql-keyword {
-        color: #0066cc;
-        font-weight: 600;
-    }
-    
-    .message-preview .sql-string {
-        color: #d73a49;
-    }
-    
-    .message-preview .sql-number {
-        color: #005cc5;
-    }
-    
-    /* Dark mode SQL syntax colors */
-    @media (prefers-color-scheme: dark) {
-        .sql-keyword {
-            color: #79c0ff;
-        }
-        
-        .sql-datatype {
-            color: #d2a8ff;
-        }
-        
-        .sql-string {
-            color: #a5d6ff;
-        }
-        
-        .sql-number {
-            color: #79c0ff;
-        }
-        
-        .sql-comment {
-            color: #8b949e;
-        }
-        
-        .sql-operator {
-            color: #ff7b72;
-        }
-        
-        .message-preview .sql-keyword {
-            color: #79c0ff;
-        }
-        
-        .message-preview .sql-string {
-            color: #a5d6ff;
-        }
-        
-        .message-preview .sql-number {
-            color: #79c0ff;
-        }
-    }
-    
-    .log-meta-item {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 0.5rem;
-        align-items: center;
-        padding: 0.375rem 0;
-        border-bottom: 1px solid var(--border-light);
-    }
-    
-    .log-meta-item:last-child {
-        border-bottom: none;
-    }
-    
-    .meta-icon {
-        font-size: 0.875rem;
-        width: 1.25rem;
-        text-align: center;
-    }
-    
-    .meta-label {
-        font-weight: 600;
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-    }
-    
-    .meta-value {
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        text-align: right;
-    }
-    
-    .meta-value.error-text {
-        color: var(--error);
-        font-weight: 500;
-    }
-    
-    .log-meta-item.performance {
-        background-color: var(--bg-tertiary);
-        border-radius: 4px;
-        padding: 0.375rem 0.5rem;
-        margin: 0.125rem 0;
-    }
-    
-    .log-meta-item.context {
-        background-color: var(--bg-secondary);
-        border-radius: 4px;
-        padding: 0.375rem 0.5rem;
-        margin: 0.125rem 0;
-    }
-    
-    .log-meta-item.error {
-        background-color: var(--error-bg, #fef2f2);
-        border-radius: 4px;
-        padding: 0.375rem 0.5rem;
-        margin: 0.125rem 0;
-        border: 1px solid var(--error-border, #fecaca);
-    }
-    
-    @media (max-width: 768px) {
-        .query-header {
-            flex-wrap: wrap;
-        }
-        
-        .query-stat-mini {
-            font-size: 0.6875rem;
-        }
-        
-        .log-meta-item {
-            grid-template-columns: auto 1fr;
-            gap: 0.25rem;
-        }
-        
-        .meta-value {
-            grid-column: 1 / -1;
-            text-align: left;
-            margin-top: 0.25rem;
-        }
-    }
-
-    .log-detail-fields {
-        display: grid;
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-
-    .log-detail-field {
-        display: grid;
-        grid-template-columns: 120px 1fr;
-        gap: 1rem;
-        align-items: start;
-    }
-
-    .log-detail-label {
-        font-weight: 600;
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-    }
-
-    .log-detail-value {
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        word-break: break-word;
-    }
-
-    .log-detail-message-textarea {
-        width: 100%;
-        height: 200px;
-        padding: 0.75rem;
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        background-color: var(--bg-secondary);
-        color: var(--text-primary);
-        resize: vertical;
-    }
-
-    .log-detail-code {
-        background: var(--bg-tertiary);
-        border: 1px solid var(--border-light);
-        border-radius: var(--radius-md);
-        padding: 1rem;
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        overflow-x: auto;
-        white-space: pre-wrap;
-        line-height: 1.5;
-    }
-
-    .message-full-content {
-        width: 100%;
-        padding: 1rem;
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        border: 1px solid var(--border-light);
-        border-radius: var(--radius-md);
-        overflow-y: auto;
-        resize: vertical;
-    }
-
-    .message-line {
-        display: flex;
-        align-items: baseline;
-    }
-
-    .line-number {
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        margin-right: 0.5rem;
-    }
-
-    .line-content {
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-        color: var(--text-primary);
-        word-break: break-word;
-    }
-
-    @media (max-width: 768px) {
-        .log-detail-field {
-            grid-template-columns: 1fr;
-            gap: 0.5rem;
-        }
-    }
-    `;
-
-    // Inject the CSS properly
-    document.head.appendChild(additionalStyles);
 });
