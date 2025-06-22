@@ -1251,7 +1251,7 @@ class LogObserver extends BaseObserver {
             const end = Math.min(start + this.pageSize - 1, total);
             
             if (total === 0) {
-                logsCount.textContent = 'No logs found';
+                logsCount.textContent = '';
             } else {
                 logsCount.textContent = `Showing ${start}-${end} of ${SharedUtils.formatNumber(total)} logs`;
             }
@@ -1883,7 +1883,7 @@ class QueryObserver extends BaseObserver {
             const end = Math.min(start + this.pageSize - 1, total);
             
             if (total === 0) {
-                queriesCount.textContent = 'No queries found';
+                queriesCount.textContent = '';
             } else {
                 queriesCount.textContent = `Showing ${start}-${end} of ${SharedUtils.formatNumber(total)} queries`;
             }

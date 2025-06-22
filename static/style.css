@@ -936,6 +936,20 @@ body {
 .query-type-badge.explain { background-color: #6366f1; }
 .query-type-badge.query { background-color: #6b7280; }
 
+.query-type-badge.merge { background-color: #059669; }
+.query-type-badge.copy { background-color: #0891b2; }
+.query-type-badge.truncate { background-color: #dc2626; }
+.query-type-badge.grant { background-color: #7c3aed; }
+.query-type-badge.revoke { background-color: #be185d; }
+.query-type-badge.use { background-color: #4338ca; }
+.query-type-badge.set { background-color: #65a30d; }
+.query-type-badge.call { background-color: #ea580c; }
+.query-type-badge.optimize { background-color: #0d9488; }
+.query-type-badge.analyze { background-color: #7c2d12; }
+
+.query-type-badge.merge.into { background-color: #059669; }
+.query-type-badge.copy.into { background-color: #0891b2; }
+
 .performance-indicator {
     padding: var(--space-1) var(--space-2);
     border-radius: 4px;
