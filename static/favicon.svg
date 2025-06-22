@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4"/>
+      <stop offset="100%" style="stop-color:#0891b2"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="32" height="32" rx="8" fill="url(#bg)"/>
+  
+  <!-- Modern data visualization bars -->
+  <rect x="6" y="20" width="2" height="8" rx="1" fill="white" opacity="0.9"/>
+  <rect x="10" y="16" width="2" height="12" rx="1" fill="white" opacity="0.9"/>
+  <rect x="14" y="12" width="2" height="16" rx="1" fill="white" opacity="0.9"/>
+  <rect x="18" y="18" width="2" height="10" rx="1" fill="white" opacity="0.9"/>
+  <rect x="22" y="14" width="2" height="14" rx="1" fill="white" opacity="0.9"/>
+  
+  <!-- Tech circuit pattern -->
+  <circle cx="8" cy="8" r="1.5" fill="url(#accent)"/>
+  <circle cx="16" cy="6" r="1.5" fill="url(#accent)"/>
+  <circle cx="24" cy="8" r="1.5" fill="url(#accent)"/>
+  <path d="M8 8 L16 6 L24 8" stroke="url(#accent)" stroke-width="1" fill="none" opacity="0.8"/>
+  
+  <!-- Pulse indicator -->
+  <circle cx="26" cy="6" r="2" fill="#10b981">
+    <animate attributeName="r" values="1.5;2.5;1.5" dur="2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.6;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+</svg>

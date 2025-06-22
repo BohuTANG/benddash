@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Databend Log Observer</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,10 +24,6 @@
                 </div>
                 <div class="header-right">
                     <button class="header-btn" id="config-btn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="3"/>
-                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
-                        </svg>
                         Configure
                     </button>
                 </div>
@@ -79,10 +76,6 @@
             <div class="filters-bar" data-tab-content="logs" style="display: none;">
                 <div class="filters-left">
                     <div class="search-box">
-                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="M21 21l-4.35-4.35"/>
-                        </svg>
                         <input type="text" placeholder="Search logs or Query ID..." id="search-input" class="search-input">
                     </div>
                     <div class="level-filters">
@@ -139,23 +132,12 @@
 
                 <!-- Empty State -->
                 <div class="empty-state" id="empty-state" style="display: none;">
-                    <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14,2 14,8 20,8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                        <polyline points="10,9 9,9 8,9"/>
-                    </svg>
                     <div class="empty-title">No logs found</div>
                     <div class="empty-description">Try adjusting your filters or time range</div>
                 </div>
 
                 <!-- Connection Message -->
                 <div class="connection-message" id="connection-message" style="display: none;">
-                    <svg class="connection-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
-                    </svg>
                     <div class="connection-title">Database Not Connected</div>
                     <div class="connection-description">Please configure your Databend connection to view logs</div>
                     <button class="btn btn-primary" onclick="document.getElementById('config-btn').click()">
@@ -199,10 +181,6 @@
             <div class="filters-bar" data-tab-content="queries">
                 <div class="filters-left">
                     <div class="search-box">
-                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="M21 21l-4.35-4.35"/>
-                        </svg>
                         <input type="text" placeholder="Search SQL queries..." id="query-search-input" class="search-input">
                     </div>
                     <div class="level-filters">
@@ -257,23 +235,12 @@
 
                 <!-- Empty State -->
                 <div class="empty-state" id="query-empty-state" style="display: none;">
-                    <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14,2 14,8 20,8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                        <polyline points="10,9 9,9 8,9"/>
-                    </svg>
                     <div class="empty-title">No queries found</div>
                     <div class="empty-description">Try adjusting your filters or time range</div>
                 </div>
 
                 <!-- Connection Message -->
                 <div class="connection-message" id="query-connection-message" style="display: none;">
-                    <svg class="connection-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
-                    </svg>
                     <div class="connection-title">Database Not Connected</div>
                     <div class="connection-description">Please configure your Databend connection to view queries</div>
                     <button class="btn btn-primary" onclick="document.getElementById('config-btn').click()">
@@ -289,9 +256,6 @@
                 </div>
                 <div class="pagination-controls">
                     <button class="pagination-btn" id="prev-btn" disabled>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="15,18 9,12 15,6"/>
-                        </svg>
                         Previous
                     </button>
                     <div class="page-numbers" id="page-numbers">
@@ -299,9 +263,6 @@
                     </div>
                     <button class="pagination-btn" id="next-btn">
                         Next
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="9,18 15,12 9,6"/>
-                        </svg>
                     </button>
                 </div>
             </div>
@@ -313,9 +274,6 @@
                 </div>
                 <div class="pagination-controls">
                     <button class="pagination-btn" id="query-prev-btn" disabled>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="15,18 9,12 15,6"/>
-                        </svg>
                         Previous
                     </button>
                     <div class="page-numbers" id="query-page-numbers">
@@ -323,9 +281,6 @@
                     </div>
                     <button class="pagination-btn" id="query-next-btn">
                         Next
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="9,18 15,12 9,6"/>
-                        </svg>
                     </button>
                 </div>
             </div>
@@ -337,10 +292,6 @@
                 <div class="modal-header">
                     <h2 class="modal-title" id="modal-title">Log Details</h2>
                     <button class="modal-close" id="modal-close">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
                     </button>
                 </div>
                 <div class="modal-content" id="modal-content">
@@ -355,10 +306,6 @@
                 <div class="modal-header">
                     <h2 class="modal-title">Database Configuration</h2>
                     <button class="modal-close" id="config-modal-close">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
                     </button>
                 </div>
                 <div class="modal-content">
