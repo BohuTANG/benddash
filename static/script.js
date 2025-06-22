@@ -94,7 +94,7 @@ class SharedUtils {
     static prettifySQL(sql) {
         if (!sql) return '';
         
-        let formatted = sql.replace(/\b(SELECT|FROM|WHERE|JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|OUTER JOIN|GROUP BY|ORDER BY|HAVING|UNION|UNION ALL)\b/gi, '\n$1');
+        let formatted = sql.replace(/\b(SELECT|FROM|WHERE|JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|OUTER JOIN|GROUP BY|ORDER BY|HAVING|UNION|UNION ALL|COPY INTO)\b/gi, '\n$1');
         formatted = formatted.replace(/\b(WITH)\b/gi, '$1\n');
         formatted = formatted.replace(/,\s*(?=\w)/g, ',\n    ');
         formatted = formatted.replace(/\n\s*\n/g, '\n').trim();
@@ -408,6 +408,8 @@ class BaseObserver {
         this.isLoading = false;
         this.stats = {};
         this.connectionStatus = { connected: false, error: null };
+        this.advancedFilters = []; // Array to store key=value filters
+        this.smartFilter = null; // Smart filter component
         
         // Configuration from child classes
         this.config = {
@@ -427,10 +429,37 @@ class BaseObserver {
             nextButtonId: '',
             pageNumbersId: '',
             paginationTextId: '',
-            connectionMessageId: ''
+            connectionMessageId: '',
+            addFilterButtonId: '',
+            advancedFiltersId: '',
+            statsOverviewId: ''
         };
         
         Object.assign(this.config, config);
+        
+        // Initialize smart filter after config is set
+        this.initializeSmartFilter();
+    }
+
+    initializeSmartFilter() {
+        // Delay initialization to ensure DOM is ready
+        setTimeout(() => {
+            const tableType = this.getTabName(); // Get table type from child class
+            this.smartFilter = new SmartFilter(
+                this.config.advancedFiltersId,
+                tableType,
+                (filters) => {
+                    this.advancedFilters = filters;
+                    this.currentPage = 1;
+                    this.loadData();
+                },
+                'Enter filter condition...',
+                this.config.addFilterButtonId
+            );
+            
+            // Create the add button and help text
+            this.smartFilter.createAddButton();
+        }, 100);
     }
 
     setupCommonEventListeners() {
@@ -450,6 +479,16 @@ class BaseObserver {
                     this.loadData();
                 }
             }, 300));
+        }
+
+        // Advanced filter button - now handled by SmartFilter component
+        const addFilterBtn = document.getElementById(this.config.addFilterButtonId);
+        if (addFilterBtn) {
+            addFilterBtn.addEventListener('click', () => {
+                if (this.smartFilter) {
+                    this.smartFilter.showFilterInput();
+                }
+            });
         }
 
         // Level filters
@@ -509,6 +548,31 @@ class BaseObserver {
         
         if (prevBtn) prevBtn.addEventListener('click', () => this.previousPage());
         if (nextBtn) nextBtn.addEventListener('click', () => this.nextPage());
+        
+        // Clickable stat items for filtering
+        const statsOverview = document.getElementById(this.config.statsOverviewId);
+        if (statsOverview) {
+            const clickableStats = statsOverview.querySelectorAll('.stat-item.clickable');
+            clickableStats.forEach(statItem => {
+                statItem.addEventListener('click', (e) => {
+                    const filterType = e.currentTarget.dataset.filter;
+                    
+                    // Only load data if the filter actually changed from user interaction
+                    if (filterType !== this.selectedLevel) {
+                        // Remove active class from all stat items
+                        clickableStats.forEach(item => item.classList.remove('active'));
+                        
+                        // Add active class to clicked item
+                        e.currentTarget.classList.add('active');
+                        
+                        // Update selected level and reload data
+                        this.selectedLevel = filterType;
+                        this.currentPage = 1;
+                        this.loadData();
+                    }
+                });
+            });
+        }
     }
 
     async loadData() {
@@ -569,6 +633,11 @@ class BaseObserver {
         
         if (this.searchQuery.trim()) {
             filters.search = this.searchQuery.trim();
+        }
+        
+        // Add advanced filters (WHERE conditions)
+        if (this.advancedFilters && this.advancedFilters.length > 0) {
+            filters.advancedFilters = this.advancedFilters;
         }
 
         return filters;
@@ -705,6 +774,23 @@ class BaseObserver {
     renderData() { throw new Error('renderData must be implemented by child class'); }
     updateStats() { throw new Error('updateStats must be implemented by child class'); }
     generateTimeChart() { throw new Error('generateTimeChart must be implemented by child class'); }
+
+    // Smart filter methods
+    getSmartFilters() {
+        return this.smartFilter ? this.smartFilter.getValidFilters() : [];
+    }
+    
+    clearAllFilters() {
+        if (this.smartFilter) {
+            this.smartFilter.clearAllFilters();
+        }
+    }
+    
+    addSmartFilter(condition = '') {
+        if (this.smartFilter) {
+            this.smartFilter.addFilter(condition);
+        }
+    }
 }
 
 // Tab management for switching between logs and queries
@@ -787,7 +873,10 @@ class LogObserver extends BaseObserver {
             nextButtonId: 'next-btn',
             pageNumbersId: 'page-numbers',
             paginationTextId: 'pagination-text',
-            connectionMessageId: 'connection-message'
+            connectionMessageId: 'connection-message',
+            addFilterButtonId: 'add-filter-btn',
+            advancedFiltersId: 'advanced-filters',
+            statsOverviewId: 'stats-overview'
         });
         
         this.queryIdSearch = '';
@@ -875,6 +964,27 @@ class LogObserver extends BaseObserver {
         if (connectionStatus) {
             connectionStatus.addEventListener('click', () => {
                 this.openConfigModal();
+            });
+        }
+        
+        // Advanced filters
+        const addFilterButton = document.getElementById(this.config.addFilterButtonId);
+        if (addFilterButton) {
+            addFilterButton.addEventListener('click', () => {
+                if (this.smartFilter) {
+                    this.smartFilter.showFilterInput();
+                }
+            });
+        }
+        
+        const advancedFilters = document.getElementById(this.config.advancedFiltersId);
+        if (advancedFilters) {
+            advancedFilters.addEventListener('click', (e) => {
+                if (e.target.classList.contains('filter-remove') || e.target.closest('.filter-remove')) {
+                    const removeButton = e.target.classList.contains('filter-remove') ? e.target : e.target.closest('.filter-remove');
+                    const filterId = removeButton.dataset.filterId;
+                    this.removeAdvancedFilter(filterId);
+                }
             });
         }
     }
@@ -1435,7 +1545,10 @@ class QueryObserver extends BaseObserver {
             nextButtonId: 'query-next-btn',
             pageNumbersId: 'query-page-numbers',
             paginationTextId: 'query-pagination-text',
-            connectionMessageId: 'query-connection-message'
+            connectionMessageId: 'query-connection-message',
+            addFilterButtonId: 'query-add-filter-btn',
+            advancedFiltersId: 'query-advanced-filters',
+            statsOverviewId: 'query-stats-overview'
         });
         
         this.queries = this.data; // Alias for backward compatibility
@@ -1806,7 +1919,7 @@ class QueryObserver extends BaseObserver {
     extractQueryType(query) {
         if (!query) return 'UNKNOWN';
         const upperQuery = query.toUpperCase().trim();
-        const types = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'SHOW', 'DESCRIBE', 'EXPLAIN'];
+        const types = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'SHOW', 'DESCRIBE', 'EXPLAIN', 'COPY INTO', 'MERGE INTO'];
         return types.find(type => upperQuery.startsWith(type)) || 'QUERY';
     }
 

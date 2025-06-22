@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Databend Log Observer</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3.0.5">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -40,23 +40,23 @@
             
             <!-- Stats Overview -->
             <div class="stats-overview" id="stats-overview" data-tab-content="logs" style="display: none;">
-                <div class="stat-item">
-                    <div class="stat-value" id="total-count">0</div>
+                <div class="stat-item clickable" data-filter="all">
+                    <div class="stat-value" id="total-count">13,433</div>
                     <div class="stat-label">Total</div>
                 </div>
-                <div class="stat-item error">
+                <div class="stat-item error clickable" data-filter="error">
                     <div class="stat-value" id="error-count">0</div>
-                    <div class="stat-label">Errors</div>
+                    <div class="stat-label">Error</div>
                 </div>
-                <div class="stat-item warning">
+                <div class="stat-item warning clickable" data-filter="warning">
                     <div class="stat-value" id="warning-count">0</div>
-                    <div class="stat-label">Warnings</div>
+                    <div class="stat-label">Warning</div>
                 </div>
-                <div class="stat-item info">
+                <div class="stat-item info clickable" data-filter="info">
                     <div class="stat-value" id="info-count">0</div>
                     <div class="stat-label">Info</div>
                 </div>
-                <div class="stat-item debug">
+                <div class="stat-item debug clickable" data-filter="debug">
                     <div class="stat-value" id="debug-count">0</div>
                     <div class="stat-label">Debug</div>
                 </div>
@@ -75,15 +75,19 @@
             <!-- Filters Bar for Log History -->
             <div class="filters-bar" data-tab-content="logs" style="display: none;">
                 <div class="filters-left">
-                    <div class="search-box">
-                        <input type="text" placeholder="Search logs or Query ID..." id="search-input" class="search-input">
-                    </div>
-                    <div class="level-filters">
-                        <button class="level-filter active" data-level="all">All</button>
-                        <button class="level-filter error" data-level="error">Error</button>
-                        <button class="level-filter warning" data-level="warning">Warn</button>
-                        <button class="level-filter info" data-level="info">Info</button>
-                        <button class="level-filter debug" data-level="debug">Debug</button>
+                    <div class="search-container">
+                        <div class="search-box">
+                            <input type="text" placeholder="Search logs or Query ID..." id="search-input" class="search-input">
+                            <button class="add-filter-btn" id="add-filter-btn" title="Add advanced filter">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="advanced-filters" id="advanced-filters">
+                            <!-- Dynamic filter items will be added here -->
+                        </div>
                     </div>
                 </div>
                 <div class="filters-right">
@@ -149,19 +153,19 @@
             <!-- Query History Tab Content -->
             <!-- Stats Overview for Query History -->
             <div class="stats-overview" id="query-stats-overview" data-tab-content="queries">
-                <div class="stat-item">
+                <div class="stat-item clickable" data-filter="all">
                     <div class="stat-value" id="query-total-count">0</div>
                     <div class="stat-label">Total</div>
                 </div>
-                <div class="stat-item success">
+                <div class="stat-item success clickable" data-filter="success">
                     <div class="stat-value" id="query-success-count">0</div>
                     <div class="stat-label">Success</div>
                 </div>
-                <div class="stat-item error">
+                <div class="stat-item error clickable" data-filter="error">
                     <div class="stat-value" id="query-error-count">0</div>
                     <div class="stat-label">Error</div>
                 </div>
-                <div class="stat-item info">
+                <div class="stat-item info clickable" data-filter="duration">
                     <div class="stat-value" id="query-avg-duration">0</div>
                     <div class="stat-label">Avg Duration (ms)</div>
                 </div>
@@ -180,13 +184,19 @@
             <!-- Filters Bar for Query History -->
             <div class="filters-bar" data-tab-content="queries">
                 <div class="filters-left">
-                    <div class="search-box">
-                        <input type="text" placeholder="Search SQL queries..." id="query-search-input" class="search-input">
-                    </div>
-                    <div class="level-filters">
-                        <button class="level-filter active" data-level="all">All</button>
-                        <button class="level-filter error" data-level="error">Error</button>
-                        <button class="level-filter success" data-level="success">Success</button>
+                    <div class="search-container">
+                        <div class="search-box">
+                            <input type="text" placeholder="Search SQL queries..." id="query-search-input" class="search-input">
+                            <button class="add-filter-btn" id="query-add-filter-btn" title="Add advanced filter">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="advanced-filters" id="query-advanced-filters">
+                            <!-- Dynamic filter items will be added here -->
+                        </div>
                     </div>
                 </div>
                 <div class="filters-right">
@@ -343,6 +353,8 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}?v=20250622130651"></script>
+    <script src="{{ url_for('static', filename='table-fields.js') }}"></script>
+    <script src="{{ url_for('static', filename='smart-filter.js') }}?v=3.0.5"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=20250622130652"></script>
 </body>
 </html>

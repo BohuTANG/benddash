@@ -90,15 +90,44 @@ class BaseRepository:
         if filters.get('timeRange') in TIME_RANGES:
             conditions.append(f"{time_field} >= {TIME_RANGES[filters['timeRange']]}")
     
-    def _add_search_filter(self, conditions: List[str], params: List, filters: Dict, search_field: str = 'message'):
-        """Add search filter to conditions"""
+    def _add_search_filter(self, conditions: List[str], params: List, filters: Dict):
+        """Add search filter with case-insensitive matching"""
+        search_field = self._get_search_field()
         if filters.get('search'):
-            conditions.append(f"{search_field} LIKE ?")
+            conditions.append(f"UPPER({search_field}) LIKE UPPER(?)")
             params.append(f"%{filters['search']}%")
+    
+    def _add_advanced_filters(self, conditions: List[str], params: List, filters: Dict):
+        """Add advanced filters (WHERE conditions)"""
+        # Check if we have advanced filters in the new format
+        advanced_filters = filters.get('advancedFilters', [])
+        
+        if isinstance(advanced_filters, list) and advanced_filters:
+            # New format: list of WHERE condition strings
+            for condition in advanced_filters:
+                if condition and condition.strip():
+                    # Add the condition directly (it's already a valid WHERE clause)
+                    conditions.append(f"({condition.strip()})")
+        else:
+            # Legacy format: key=value pairs (for backward compatibility)
+            # System parameters that should not be treated as database filters
+            system_params = {
+                'queryId', 'level', 'search', 'timeRange', 
+                'page', 'pageSize', 'status', 'database', 'advancedFilters'
+            }
+            
+            for key, value in filters.items():
+                if key not in system_params and value and value.strip():
+                    conditions.append(f"{key} = ?")
+                    params.append(value)
 
 class LogRepository(BaseRepository):
     def __init__(self, db_client: DatabendClient):
         super().__init__(db_client)
+    
+    def _get_search_field(self):
+        """Return the field name used for searching in logs"""
+        return 'message'
     
     def get_logs(self, filters: Dict) -> Dict[str, Any]:
         page = filters.get('page', 1)
@@ -134,6 +163,9 @@ class LogRepository(BaseRepository):
                 conditions.append(f"log_level = '{LEVEL_MAP[filters['level']]}'")
             
             self._add_search_filter(conditions, params, filters)
+        
+        # Add advanced filters (key=value pairs)
+        self._add_advanced_filters(conditions, params, filters)
         
         return " AND ".join(conditions), params
     
@@ -393,6 +425,10 @@ class QueryRepository(BaseRepository):
     def __init__(self, db_client: DatabendClient):
         super().__init__(db_client)
     
+    def _get_search_field(self):
+        """Return the field name used for searching in queries"""
+        return 'query_text'
+    
     def get_queries(self, filters: Dict) -> Dict[str, Any]:
         page = filters.get('page', 1)
         page_size = min(filters.get('pageSize', 200), 200)
@@ -423,7 +459,7 @@ class QueryRepository(BaseRepository):
             params.append(filters['queryId'])
         
         # Text search in query_text
-        self._add_search_filter(conditions, params, filters, search_field='query_text')
+        self._add_search_filter(conditions, params, filters)
         
         # Database filter
         if filters.get('database'):
@@ -438,6 +474,9 @@ class QueryRepository(BaseRepository):
         # Default condition if none specified
         if not conditions:
             conditions.append("1=1")
+        
+        # Add advanced filters (key=value pairs)
+        self._add_advanced_filters(conditions, params, filters)
         
         return " AND ".join(conditions), params
     
