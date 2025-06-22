@@ -166,7 +166,7 @@ def get_logs():
             'logs': [],
             'total': 0,
             'page': 1,
-            'pageSize': 50,
+            'pageSize': 200,
             'totalPages': 0,
             'stats': {'total': 0, 'error': 0, 'warning': 0, 'info': 0, 'debug': 0}
         }), 503
@@ -189,7 +189,7 @@ def get_logs():
             'logs': [],
             'total': 0,
             'page': 1,
-            'pageSize': 50,
+            'pageSize': 200,
             'totalPages': 0,
             'stats': {'total': 0, 'error': 0, 'warning': 0, 'info': 0, 'debug': 0}
         }), 500

@@ -102,7 +102,7 @@ class LogRepository(BaseRepository):
     
     def get_logs(self, filters: Dict) -> Dict[str, Any]:
         page = filters.get('page', 1)
-        page_size = min(filters.get('pageSize', 50), 200)
+        page_size = min(filters.get('pageSize', 200), 200)
         offset = (page - 1) * page_size
         
         where_conditions, params = self._build_where_clause(filters)
@@ -395,7 +395,7 @@ class QueryRepository(BaseRepository):
     
     def get_queries(self, filters: Dict) -> Dict[str, Any]:
         page = filters.get('page', 1)
-        page_size = min(filters.get('pageSize', 50), 200)
+        page_size = min(filters.get('pageSize', 200), 200)
         offset = (page - 1) * page_size
         
         where_conditions, params = self._build_where_clause(filters)
