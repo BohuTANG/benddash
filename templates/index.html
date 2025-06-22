@@ -37,12 +37,12 @@
         <main class="main">
             <!-- Tab Navigation -->
             <div class="tab-navigation">
-                <button class="tab-button active" data-tab="logs">Log History</button>
-                <button class="tab-button" data-tab="queries">Query History</button>
+                <button class="tab-button active" data-tab="queries">Query History</button>
+                <button class="tab-button" data-tab="logs">Log History</button>
             </div>
             
             <!-- Stats Overview -->
-            <div class="stats-overview" id="stats-overview" data-tab-content="logs">
+            <div class="stats-overview" id="stats-overview" data-tab-content="logs" style="display: none;">
                 <div class="stat-item">
                     <div class="stat-value" id="total-count">0</div>
                     <div class="stat-label">Total</div>
@@ -66,7 +66,7 @@
             </div>
 
             <!-- Time Distribution Chart for Log History -->
-            <div class="time-chart-container" data-tab-content="logs">
+            <div class="time-chart-container" data-tab-content="logs" style="display: none;">
                 <div class="time-chart-header">
                     <span class="time-chart-title" id="logs-chart-title">0 Results</span>
                 </div>
@@ -76,7 +76,7 @@
             </div>
 
             <!-- Filters Bar for Log History -->
-            <div class="filters-bar" data-tab-content="logs">
+            <div class="filters-bar" data-tab-content="logs" style="display: none;">
                 <div class="filters-left">
                     <div class="search-box">
                         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -119,7 +119,7 @@
             </div>
 
             <!-- Logs Container -->
-            <div class="logs-container" data-tab-content="logs">
+            <div class="logs-container" data-tab-content="logs" style="display: none;">
                 <div class="logs-header">
                     <div class="logs-title">
                         <span id="logs-count">No logs found</span>
@@ -166,7 +166,7 @@
 
             <!-- Query History Tab Content -->
             <!-- Stats Overview for Query History -->
-            <div class="stats-overview" id="query-stats-overview" data-tab-content="queries" style="display: none;">
+            <div class="stats-overview" id="query-stats-overview" data-tab-content="queries">
                 <div class="stat-item">
                     <div class="stat-value" id="query-total-count">0</div>
                     <div class="stat-label">Total</div>
@@ -186,7 +186,7 @@
             </div>
             
             <!-- Time Distribution Chart for Query History -->
-            <div class="time-chart-container" data-tab-content="queries" style="display: none;">
+            <div class="time-chart-container" data-tab-content="queries">
                 <div class="time-chart-header">
                     <span class="time-chart-title" id="queries-chart-title">0 Results</span>
                 </div>
@@ -196,7 +196,7 @@
             </div>
 
             <!-- Filters Bar for Query History -->
-            <div class="filters-bar" data-tab-content="queries" style="display: none;">
+            <div class="filters-bar" data-tab-content="queries">
                 <div class="filters-left">
                     <div class="search-box">
                         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -237,7 +237,7 @@
             </div>
 
             <!-- Query History Container -->
-            <div class="logs-container" data-tab-content="queries" style="display: none;">
+            <div class="logs-container" data-tab-content="queries">
                 <div class="logs-header">
                     <div class="logs-title">
                         <span id="queries-count">No queries found</span>
@@ -283,7 +283,7 @@
             </div>
 
             <!-- Pagination for Logs -->
-            <div class="pagination" id="pagination">
+            <div class="pagination" id="pagination" style="display: none;">
                 <div class="pagination-info">
                     <span id="pagination-text">Showing 0-0 of 0 logs</span>
                 </div>
@@ -307,7 +307,7 @@
             </div>
 
             <!-- Query Pagination -->
-            <div class="pagination" id="query-pagination" style="display: none;">
+            <div class="pagination" id="query-pagination">
                 <div class="pagination-info">
                     <span id="query-pagination-text">Showing 0-0 of 0 queries</span>
                 </div>
@@ -396,6 +396,6 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=20250622130651"></script>
 </body>
 </html>

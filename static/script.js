@@ -1,4 +1,5 @@
-// Modern Log Viewer - Clean & Minimal Design
+// Databend Log Observer - Updated: 2025-06-22 13:13:40 - Connection check removed
+// This file has been modified to remove connection status checks and enable direct API calls
 
 // Shared utilities
 class SharedUtils {
@@ -399,13 +400,14 @@ class BaseObserver {
         this.currentPage = 1;
         this.pageSize = 200;
         this.totalRecords = 0;
-        this.stats = {};
         this.searchQuery = '';
-        this.selectedLevel = 'all';
+        this.selectedLevel = '';
         this.timeRange = '5m';
-        this.autoRefreshInterval = null;
         this.autoRefreshSeconds = 'off';
+        this.autoRefreshInterval = null;
         this.isLoading = false;
+        this.stats = {};
+        this.connectionStatus = { connected: false, error: null };
         
         // Configuration from child classes
         this.config = {
@@ -435,10 +437,18 @@ class BaseObserver {
         // Search input
         const searchInput = document.getElementById(this.config.searchInputId);
         if (searchInput) {
+            // Store initial value to prevent auto-loading on initialization
+            let previousSearchQuery = searchInput.value || '';
+            
             searchInput.addEventListener('input', SharedUtils.debounce((e) => {
-                this.searchQuery = e.target.value.trim();
-                this.currentPage = 1;
-                this.loadData();
+                const newSearchQuery = e.target.value.trim();
+                // Only load data if the value actually changed from user interaction
+                if (newSearchQuery !== previousSearchQuery) {
+                    this.searchQuery = newSearchQuery;
+                    previousSearchQuery = newSearchQuery;
+                    this.currentPage = 1;
+                    this.loadData();
+                }
             }, 300));
         }
 
@@ -447,10 +457,14 @@ class BaseObserver {
             const levelFilters = document.querySelectorAll(this.config.levelFiltersSelector);
             levelFilters.forEach(filter => {
                 filter.addEventListener('click', (e) => {
-                    this.setActiveFilter(e.target);
-                    this.selectedLevel = e.target.dataset.level;
-                    this.currentPage = 1;
-                    this.loadData();
+                    const newLevel = e.target.dataset.level;
+                    // Only load data if the level actually changed from user interaction
+                    if (newLevel !== this.selectedLevel) {
+                        this.setActiveFilter(e.target);
+                        this.selectedLevel = newLevel;
+                        this.currentPage = 1;
+                        this.loadData();
+                    }
                 });
             });
         }
@@ -458,34 +472,47 @@ class BaseObserver {
         // Time range selector
         const timeRangeSelect = document.getElementById(this.config.timeRangeSelectId);
         if (timeRangeSelect) {
+            // Store initial value to prevent auto-loading on initialization
+            let previousTimeRange = timeRangeSelect.value || this.timeRange;
+            
             timeRangeSelect.addEventListener('change', (e) => {
-                this.timeRange = e.target.value;
-                this.loadData();
+                const newTimeRange = e.target.value;
+                // Only load data if the value actually changed from user interaction
+                if (newTimeRange !== previousTimeRange) {
+                    this.timeRange = newTimeRange;
+                    previousTimeRange = newTimeRange;
+                    this.loadData();
+                }
             });
         }
 
         // Auto refresh selector
         const autoRefreshSelect = document.getElementById(this.config.autoRefreshSelectId);
         if (autoRefreshSelect) {
+            // Store initial value to prevent auto-loading on initialization
+            let previousAutoRefreshSeconds = autoRefreshSelect.value || this.autoRefreshSeconds;
+            
             autoRefreshSelect.addEventListener('change', (e) => {
-                this.setAutoRefresh(e.target.value);
+                const newAutoRefreshSeconds = e.target.value;
+                // Only set auto-refresh if the value actually changed from user interaction
+                if (newAutoRefreshSeconds !== previousAutoRefreshSeconds) {
+                    this.autoRefreshSeconds = newAutoRefreshSeconds;
+                    previousAutoRefreshSeconds = newAutoRefreshSeconds;
+                    this.setAutoRefresh(newAutoRefreshSeconds);
+                }
             });
         }
 
         // Pagination
         const prevBtn = document.getElementById(this.config.prevButtonId);
         const nextBtn = document.getElementById(this.config.nextButtonId);
+        
         if (prevBtn) prevBtn.addEventListener('click', () => this.previousPage());
         if (nextBtn) nextBtn.addEventListener('click', () => this.nextPage());
     }
 
     async loadData() {
         if (this.isLoading) return;
-        
-        if (window.logObserver && window.logObserver.connectionStatus && !window.logObserver.connectionStatus.connected) {
-            this.showConnectionMessage();
-            return;
-        }
         
         this.data = [];
         this.renderData();
@@ -646,7 +673,7 @@ class BaseObserver {
         if (seconds !== 'off') {
             const intervalMs = parseInt(seconds) * 1000;
             this.autoRefreshInterval = setInterval(() => {
-                if (!this.isLoading && window.logObserver && window.logObserver.connectionStatus && window.logObserver.connectionStatus.connected) {
+                if (!this.isLoading) {
                     this.loadData();
                 }
             }, intervalMs);
@@ -732,12 +759,11 @@ class TabManager {
             const queryPagination = document.getElementById('query-pagination');
             if (logsPagination) logsPagination.style.display = 'none';
             if (queryPagination) queryPagination.style.display = 'flex';
-        }
-        
-        if (tabId === 'logs' && window.logObserver && window.logObserver.data.length === 0) {
-            window.logObserver.loadData();
-        } else if (tabId === 'queries' && window.queryHistoryObserver && window.queryHistoryObserver.data.length === 0) {
-            window.queryHistoryObserver.loadData();
+            
+            // Trigger data loading for queries tab
+            if (window.queryObserver) {
+                window.queryObserver.loadData();
+            }
         }
     }
 }
@@ -765,7 +791,6 @@ class LogObserver extends BaseObserver {
         });
         
         this.queryIdSearch = '';
-        this.connectionStatus = { connected: false, error: null };
         this.logs = this.data; // Alias for backward compatibility
         
         this.initialize();
@@ -777,29 +802,37 @@ class LogObserver extends BaseObserver {
     getTabName() { return 'logs'; }
 
     initialize() {
-        this.checkConnectionStatus();
         this.setupEventListeners();
         this.setupCommonEventListeners();
         this.updateLogsCount();
         this.loadData();
+        this.checkConnectionStatus();
     }
 
     setupEventListeners() {
         // Override search to handle query ID format
         const searchInput = document.getElementById(this.config.searchInputId);
         if (searchInput) {
+            // Store initial value to prevent auto-loading on initialization
+            let previousSearchValue = searchInput.value || '';
+            
             searchInput.addEventListener('input', SharedUtils.debounce((e) => {
                 const value = e.target.value.trim();
-                this.searchQuery = value;
                 
-                if (this.isQueryIdFormat(value)) {
-                    this.queryIdSearch = value;
-                    this.searchQuery = '';
-                } else {
-                    this.queryIdSearch = '';
+                // Only load data if the value actually changed from user interaction
+                if (value !== previousSearchValue) {
+                    this.searchQuery = value;
+                    
+                    if (this.isQueryIdFormat(value)) {
+                        this.queryIdSearch = value;
+                        this.searchQuery = '';
+                    } else {
+                        this.queryIdSearch = '';
+                    }
+                    this.currentPage = 1;
+                    previousSearchValue = value;
+                    this.loadData();
                 }
-                this.currentPage = 1;
-                this.loadData();
             }, 300));
         }
 
@@ -811,12 +844,6 @@ class LogObserver extends BaseObserver {
             modalOverlay.addEventListener('click', (e) => {
                 if (e.target === modalOverlay) this.closeModal();
             });
-        }
-
-        // Connection status
-        const connectionStatusElement = document.getElementById('connection-status');
-        if (connectionStatusElement) {
-            connectionStatusElement.addEventListener('click', () => this.openConfigModal());
         }
 
         // Config modal
@@ -841,6 +868,14 @@ class LogObserver extends BaseObserver {
             dsnInput.addEventListener('input', SharedUtils.debounce((e) => {
                 this.updateDsnPreview(e.target.value);
             }, 200));
+        }
+        
+        // Connection status click handler
+        const connectionStatus = document.getElementById('connection-status');
+        if (connectionStatus) {
+            connectionStatus.addEventListener('click', () => {
+                this.openConfigModal();
+            });
         }
     }
 
@@ -1036,7 +1071,6 @@ class LogObserver extends BaseObserver {
         if (log.path) metaItems.push(`<div class="log-meta-item"><span class="meta-label">Path:</span> <span class="meta-value">${SharedUtils.escapeHtml(log.path)}</span></div>`);
         if (log.cluster_id) metaItems.push(`<div class="log-meta-item"><span class="meta-label">Cluster:</span> <span class="meta-value">${SharedUtils.escapeHtml(log.cluster_id)}</span></div>`);
         meta.innerHTML = metaItems.join('');
-
         return meta;
     }
 
@@ -1161,48 +1195,6 @@ class LogObserver extends BaseObserver {
         }
     }
 
-    async checkConnectionStatus() {
-        try {
-            const response = await fetch('/api/connection/status');
-            this.connectionStatus = await response.json();
-            this.updateConnectionUI();
-            
-            if (this.connectionStatus.connected) {
-                this.loadData();
-            }
-        } catch (error) {
-            console.error('Failed to check connection status:', error);
-            this.connectionStatus = { connected: false, error: 'Failed to check connection' };
-            this.updateConnectionUI();
-        }
-    }
-
-    updateConnectionUI() {
-        const statusDot = document.getElementById('connection-status-dot');
-        const statusText = document.getElementById('connection-status-text');
-        const connectionMessage = document.getElementById('connection-message');
-        
-        if (this.connectionStatus.connected) {
-            statusDot.className = 'status-dot';
-            statusText.textContent = 'Connected';
-            
-            if (connectionMessage) {
-                connectionMessage.style.display = 'none';
-            }
-        } else {
-            statusDot.className = 'status-dot status-disconnected';
-            statusText.textContent = 'Disconnected';
-            
-            if (this.connectionStatus.error) {
-                statusText.title = this.connectionStatus.error;
-            }
-            
-            if (connectionMessage) {
-                connectionMessage.style.display = 'block';
-            }
-        }
-    }
-
     openConfigModal() {
         const configModal = document.getElementById('config-modal-overlay');
         configModal.style.display = 'flex';
@@ -1218,12 +1210,12 @@ class LogObserver extends BaseObserver {
         const currentConnectionDiv = document.getElementById('current-connection');
         const connectionInfoGrid = document.getElementById('connection-info-grid');
 
-        if (this.connectionStatus.connected && this.connectionStatus.dsn) {
+        if (this.connectionStatus && this.connectionStatus.connected && this.connectionStatus.dsn_masked) {
             currentConnectionDiv.style.display = 'block';
             
             connectionInfoGrid.innerHTML = '';
 
-            const parsedDsn = this.parseDsn(this.connectionStatus.dsn);
+            const parsedDsn = this.parseDsn(this.connectionStatus.dsn_masked);
 
             for (const [key, value] of Object.entries(parsedDsn)) {
                 if (value) {
@@ -1242,6 +1234,113 @@ class LogObserver extends BaseObserver {
         } else {
             currentConnectionDiv.style.display = 'none';
             connectionInfoGrid.innerHTML = '';
+        }
+    }
+
+    closeConfigModal() {
+        const configModal = document.getElementById('config-modal-overlay');
+        configModal.style.display = 'none';
+        const dsnInput = document.getElementById('dsn-input');
+        dsnInput.value = '';
+        const connectionFeedback = document.getElementById('connection-feedback');
+        connectionFeedback.style.display = 'none';
+    }
+
+    connectDatabase() {
+        const dsnInput = document.getElementById('dsn-input');
+        const dsn = dsnInput.value.trim();
+        if (!dsn) {
+            alert('Please enter a DSN');
+            return;
+        }
+
+        const connectBtn = document.getElementById('config-connect');
+        if (!connectBtn) {
+            console.error('Connect button not found');
+            return;
+        }
+        
+        const originalText = connectBtn.textContent;
+        connectBtn.textContent = 'Connecting...';
+        connectBtn.disabled = true;
+
+        const connectionFeedback = document.getElementById('connection-feedback');
+        connectionFeedback.style.display = 'none';
+
+        // Update UI to show connecting status
+        const statusDot = document.getElementById('connection-status-dot');
+        const statusText = document.getElementById('connection-status-text');
+        statusDot.className = 'status-dot status-connecting';
+        statusText.textContent = 'Connecting...';
+
+        fetch('/api/connection/configure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dsn })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                this.connectionStatus = result.status;
+                this.updateConnectionUI();
+                this.updateCurrentConnectionDisplay();
+                connectionFeedback.textContent = 'Connected successfully!';
+                connectionFeedback.className = 'connection-status success';
+                connectionFeedback.style.display = 'block';
+                setTimeout(() => {
+                    this.closeConfigModal();
+                }, 1500);
+            } else {
+                this.connectionStatus = result.status || { connected: false, error: result.error };
+                this.updateConnectionUI();
+                connectionFeedback.textContent = result.error || 'Connection failed';
+                connectionFeedback.className = 'connection-status error';
+                connectionFeedback.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Connection error:', error);
+            this.connectionStatus = { connected: false, error: error.message };
+            this.updateConnectionUI();
+            connectionFeedback.textContent = 'Connection failed: ' + error.message;
+            connectionFeedback.className = 'connection-status error';
+            connectionFeedback.style.display = 'block';
+        })
+        .finally(() => {
+            connectBtn.textContent = originalText;
+            connectBtn.disabled = false;
+        });
+    }
+
+    updateDsnPreview(dsn) {
+        const previewDiv = document.getElementById('parsed-dsn-preview');
+        if (!dsn.trim()) {
+            previewDiv.style.display = 'none';
+            return;
+        }
+
+        const parsed = this.parseDsn(dsn);
+        
+        const detailsToShow = Object.entries(parsed).filter(([key, value]) => value && key !== 'user' && key !== 'port');
+
+        if (detailsToShow.length > 0) {
+            previewDiv.style.display = 'grid';
+            previewDiv.innerHTML = '';
+
+            detailsToShow.forEach(([key, value]) => {
+                const labelEl = document.createElement('div');
+                labelEl.className = 'preview-info-label';
+                labelEl.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
+
+                const valueEl = document.createElement('div');
+                valueEl.className = 'preview-info-value';
+                valueEl.textContent = value;
+
+                previewDiv.appendChild(labelEl);
+                previewDiv.appendChild(valueEl);
+            });
+        } else {
+            previewDiv.style.display = 'none';
         }
     }
 
@@ -1278,118 +1377,46 @@ class LogObserver extends BaseObserver {
         return result;
     }
 
-    closeConfigModal() {
-        const configModal = document.getElementById('config-modal-overlay');
-        configModal.style.display = 'none';
-        const dsnInput = document.getElementById('dsn-input');
-        dsnInput.value = '';
-        const connectionFeedback = document.getElementById('connection-feedback');
-        connectionFeedback.style.display = 'none';
-    }
-
-    async connectDatabase() {
-        const dsnInput = document.getElementById('dsn-input');
-        const dsn = dsnInput.value.trim();
-        if (!dsn) {
-            const connectionFeedback = document.getElementById('connection-feedback');
-            connectionFeedback.textContent = 'Please enter a DSN connection string';
-            connectionFeedback.className = 'connection-status error';
-            connectionFeedback.style.display = 'block';
-            return;
-        }
-
-        const connectBtn = document.getElementById('config-connect');
-        const originalText = connectBtn.textContent;
-        connectBtn.textContent = 'Connecting...';
-        connectBtn.disabled = true;
-
-        const statusDot = document.getElementById('connection-status-dot');
-        const statusText = document.getElementById('connection-status-text');
-        statusDot.className = 'status-dot status-connecting';
-        statusText.textContent = 'Connecting...';
-
-        try {
-            const response = await fetch('/api/connection/configure', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dsn })
-            });
-
-            const result = await response.json();
-            
-            if (result.success) {
-                this.connectionStatus = result.status;
-                this.updateConnectionUI();
-                const connectionFeedback = document.getElementById('connection-feedback');
-                connectionFeedback.textContent = 'Connected successfully!';
-                connectionFeedback.className = 'connection-status success';
-                connectionFeedback.style.display = 'block';
-                setTimeout(() => {
-                    this.closeConfigModal();
-                    this.loadData();
-                }, 1500);
-            } else {
-                this.connectionStatus = result.status || { connected: false, error: result.error };
-                this.updateConnectionUI();
-                const connectionFeedback = document.getElementById('connection-feedback');
-                connectionFeedback.textContent = result.error || 'Connection failed';
-                connectionFeedback.className = 'connection-status error';
-                connectionFeedback.style.display = 'block';
-            }
-        } catch (error) {
-            console.error('Connection error:', error);
-            this.connectionStatus = { connected: false, error: error.message };
-            this.updateConnectionUI();
-            const connectionFeedback = document.getElementById('connection-feedback');
-            connectionFeedback.textContent = 'Connection failed: ' + error.message;
-            connectionFeedback.className = 'connection-status error';
-            connectionFeedback.style.display = 'block';
-        } finally {
-            connectBtn.textContent = originalText;
-            connectBtn.disabled = false;
-        }
-    }
-
-    updateDsnPreview(dsn) {
-        const previewDiv = document.getElementById('parsed-dsn-preview');
-        if (!dsn.trim()) {
-            previewDiv.style.display = 'none';
-            return;
-        }
-
-        const parsed = this.parseDsn(dsn);
-        
-        const detailsToShow = Object.entries(parsed).filter(([key, value]) => value && key !== 'user' && key !== 'port');
-
-        if (detailsToShow.length > 0) {
-            previewDiv.style.display = 'grid';
-            previewDiv.innerHTML = '';
-
-            detailsToShow.forEach(([key, value]) => {
-                const labelEl = document.createElement('div');
-                labelEl.className = 'preview-info-label';
-                labelEl.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
-
-                const valueEl = document.createElement('div');
-                valueEl.className = 'preview-info-value';
-                valueEl.textContent = value;
-
-                previewDiv.appendChild(labelEl);
-                previewDiv.appendChild(valueEl);
-            });
-        } else {
-            previewDiv.style.display = 'none';
-        }
-    }
-
     // Keep loadLogs method for backward compatibility
     loadLogs() {
         return this.loadData();
     }
+    
+    updateConnectionUI() {
+        const statusDot = document.getElementById('connection-status-dot');
+        const statusText = document.getElementById('connection-status-text');
+        
+        if (this.connectionStatus && this.connectionStatus.connected) {
+            statusDot.className = 'status-dot';
+            statusText.textContent = 'Connected';
+        } else {
+            statusDot.className = 'status-dot status-disconnected';
+            statusText.textContent = 'Disconnected';
+            
+            if (this.connectionStatus && this.connectionStatus.error) {
+                statusText.title = this.connectionStatus.error;
+            }
+        }
+    }
+
+    checkConnectionStatus() {
+        fetch('/api/connection/status')
+        .then(response => response.json())
+        .then(result => {
+            this.connectionStatus = result;
+            this.updateConnectionUI();
+            this.updateCurrentConnectionDisplay();
+        })
+        .catch(error => {
+            console.error('Connection status check failed:', error);
+            this.connectionStatus = { connected: false, error: error.message };
+            this.updateConnectionUI();
+        });
+    }
 }
 
 // Query History Observer class
-class QueryHistoryObserver extends BaseObserver {
+class QueryObserver extends BaseObserver {
     constructor() {
         super({
             apiEndpoint: '/api/queries',
@@ -1424,6 +1451,7 @@ class QueryHistoryObserver extends BaseObserver {
     initialize() {
         this.setupCommonEventListeners();
         this.updateQueriesCount();
+        this.loadData();
     }
 
     renderData() {
@@ -1434,24 +1462,23 @@ class QueryHistoryObserver extends BaseObserver {
 
         queriesList.innerHTML = '';
 
+        // Always hide empty state for Query History
+        if (emptyState) emptyState.style.display = 'none';
+        
+        // Always show queries list
+        queriesList.style.display = 'block';
+        queriesList.className = 'logs-list';
+
         if (this.data.length === 0) {
-            queriesList.style.display = 'block';
-            if (emptyState) emptyState.style.display = 'none';
+            // Don't show empty state, just leave the list empty
             return;
         }
-
-        queriesList.style.display = 'block';
-        if (emptyState) emptyState.style.display = 'none';
-
-        queriesList.className = 'logs-list';
 
         const startIndex = (this.currentPage - 1) * this.pageSize;
         this.data.forEach((query, index) => {
             const queryEntry = this.createQueryEntry(query, startIndex + index);
             queriesList.appendChild(queryEntry);
         });
-
-        this.updateQueriesCount();
     }
 
     createQueryEntry(query, index) {
@@ -1562,7 +1589,7 @@ class QueryHistoryObserver extends BaseObserver {
             copyIcon.setAttribute('fill', 'none');
             copyIcon.setAttribute('stroke', 'currentColor');
             copyIcon.setAttribute('stroke-width', '2');
-            copyIcon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>';
+            copyIcon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>';
             
             const copySuccess = document.createElement('span');
             copySuccess.className = 'copy-success';
@@ -1825,7 +1852,7 @@ class QueryHistoryObserver extends BaseObserver {
 document.addEventListener('DOMContentLoaded', function() {
     window.tabManager = new TabManager();
     window.logObserver = new LogObserver();
-    window.queryHistoryObserver = new QueryHistoryObserver();
+    window.queryObserver = new QueryObserver();
     
     const activeTabButton = document.querySelector('.tab-button.active');
     if (activeTabButton) {
