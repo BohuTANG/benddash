@@ -381,6 +381,17 @@ class UIHandler {
     }
 
     static showError(message, duration = 5000) {
+        // Check if this is a database connection related error
+        const isConnectionError = message.includes('HTTP 500') || 
+                                 message.includes('INTERNAL SERVER ERROR') ||
+                                 message.includes('Failed to load data') ||
+                                 message.includes('Connection failed');
+
+        if (isConnectionError) {
+            this.showConfigurationPrompt();
+            return;
+        }
+
         let errorElement = document.getElementById('error-notification');
         if (!errorElement) {
             errorElement = document.createElement('div');
@@ -395,6 +406,37 @@ class UIHandler {
         setTimeout(() => {
             errorElement.style.display = 'none';
         }, duration);
+    }
+
+    static showConfigurationPrompt() {
+        let promptElement = document.getElementById('config-prompt');
+        if (!promptElement) {
+            promptElement = document.createElement('div');
+            promptElement.id = 'config-prompt';
+            promptElement.className = 'config-prompt';
+            promptElement.innerHTML = `
+                <div class="config-prompt-content">
+                    <div class="config-prompt-icon">⚙️</div>
+                    <div class="config-prompt-text">
+                        <h3>Database Connection Required</h3>
+                        <p>Please configure your Databend connection to view logs and metrics.</p>
+                    </div>
+                    <button class="config-prompt-button" onclick="window.logObserver.openConfigModal()">
+                        Configure Now
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(promptElement);
+        }
+
+        promptElement.style.display = 'block';
+    }
+
+    static hideConfigurationPrompt() {
+        const promptElement = document.getElementById('config-prompt');
+        if (promptElement) {
+            promptElement.style.display = 'none';
+        }
     }
 }
 
@@ -1346,6 +1388,9 @@ class LogObserver extends BaseObserver {
         const connectionFeedback = document.getElementById('connection-feedback');
         connectionFeedback.style.display = 'none';
         
+        // Hide configuration prompt when modal opens
+        UIHandler.hideConfigurationPrompt();
+        
         this.updateCurrentConnectionDisplay();
         this.validateDsnInput();
     }
@@ -1408,6 +1453,13 @@ class LogObserver extends BaseObserver {
         dsnInput.value = '';
         const connectionFeedback = document.getElementById('connection-feedback');
         connectionFeedback.style.display = 'none';
+        
+        // If still not connected, show configuration prompt again
+        if (!this.connectionStatus || !this.connectionStatus.connected) {
+            setTimeout(() => {
+                UIHandler.showConfigurationPrompt();
+            }, 300); // Small delay to avoid visual conflict
+        }
     }
 
     connectDatabase() {
@@ -1455,6 +1507,10 @@ class LogObserver extends BaseObserver {
                 this.connectionStatus = result.status;
                 this.updateConnectionUI();
                 this.updateCurrentConnectionDisplay();
+                
+                // Hide configuration prompt if it's showing
+                UIHandler.hideConfigurationPrompt();
+                
                 connectionFeedback.textContent = 'Connected successfully! Refreshing page...';
                 connectionFeedback.className = 'connection-status success';
                 connectionFeedback.style.display = 'block';
@@ -1529,6 +1585,9 @@ class LogObserver extends BaseObserver {
         if (this.connectionStatus && this.connectionStatus.connected) {
             statusDot.className = 'status-dot';
             statusText.textContent = 'Connected';
+            
+            // Hide configuration prompt if connected
+            UIHandler.hideConfigurationPrompt();
         } else {
             statusDot.className = 'status-dot status-disconnected';
             statusText.textContent = 'Disconnected';
