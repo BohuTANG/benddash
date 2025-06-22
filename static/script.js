@@ -295,6 +295,11 @@ class UIHandler {
                 e.preventDefault();
             }
 
+            // Check if button is disabled
+            if (button.disabled) {
+                return;
+            }
+
             try {
                 if (showLoading) {
                     UIHandler.showLoading(true, {
@@ -951,14 +956,21 @@ class LogObserver extends BaseObserver {
             loadingText: 'Connecting...'
         });
 
-        // DSN input real-time parser
+        // DSN input validation - disable connect button when empty
         const dsnInput = document.getElementById('dsn-input');
-        if (dsnInput) {
-            dsnInput.addEventListener('input', SharedUtils.debounce((e) => {
-                this.updateDsnPreview(e.target.value);
-            }, 200));
+        const connectButton = document.getElementById('config-connect');
+        if (dsnInput && connectButton) {
+            // Initial validation
+            this.validateDsnInput();
+            
+            // Real-time validation
+            dsnInput.addEventListener('input', () => this.validateDsnInput());
+            dsnInput.addEventListener('paste', () => {
+                // Use setTimeout to ensure paste content is processed
+                setTimeout(() => this.validateDsnInput(), 0);
+            });
         }
-        
+
         // Connection status click handler
         const connectionStatus = document.getElementById('connection-status');
         if (connectionStatus) {
@@ -986,6 +998,27 @@ class LogObserver extends BaseObserver {
                     this.removeAdvancedFilter(filterId);
                 }
             });
+        }
+    }
+
+    validateDsnInput() {
+        const dsnInput = document.getElementById('dsn-input');
+        const connectButton = document.getElementById('config-connect');
+        if (dsnInput && connectButton) {
+            const dsn = dsnInput.value.trim();
+            const shouldDisable = !dsn;
+            connectButton.disabled = shouldDisable;
+            
+            // Add visual feedback for disabled state
+            if (shouldDisable) {
+                connectButton.style.opacity = '0.5';
+                connectButton.style.cursor = 'not-allowed';
+            } else {
+                connectButton.style.opacity = '1';
+                connectButton.style.cursor = 'pointer';
+            }
+            
+            console.log(`DSN validation: input="${dsn}", disabled=${shouldDisable}`);
         }
     }
 
@@ -1314,6 +1347,7 @@ class LogObserver extends BaseObserver {
         connectionFeedback.style.display = 'none';
         
         this.updateCurrentConnectionDisplay();
+        this.validateDsnInput();
     }
 
     updateCurrentConnectionDisplay() {
@@ -1324,6 +1358,26 @@ class LogObserver extends BaseObserver {
             currentConnectionDiv.style.display = 'block';
             
             connectionInfoGrid.innerHTML = '';
+
+            // Add connection type indicator
+            const typeLabel = document.createElement('div');
+            typeLabel.className = 'connection-info-label';
+            typeLabel.textContent = 'Type:';
+
+            const typeValue = document.createElement('div');
+            typeValue.className = 'connection-info-value';
+            const connectionType = this.connectionStatus.connection_type || 'unknown';
+            typeValue.textContent = connectionType === 'global' ? 'Global (Shared)' : 'Session (Private)';
+            if (connectionType === 'global') {
+                typeValue.style.color = '#e74c3c';
+                typeValue.style.fontWeight = 'bold';
+            } else {
+                typeValue.style.color = '#27ae60';
+                typeValue.style.fontWeight = 'bold';
+            }
+
+            connectionInfoGrid.appendChild(typeLabel);
+            connectionInfoGrid.appendChild(typeValue);
 
             const parsedDsn = this.parseDsn(this.connectionStatus.dsn_masked);
 
@@ -1358,12 +1412,19 @@ class LogObserver extends BaseObserver {
 
     connectDatabase() {
         const dsnInput = document.getElementById('dsn-input');
+        const globalCheckbox = document.getElementById('global-config');
         const dsn = dsnInput.value.trim();
+        const isGlobal = globalCheckbox.checked;
+
+        // Validate DSN input
         if (!dsn) {
-            alert('Please enter a DSN');
+            const connectionFeedback = document.getElementById('connection-feedback');
+            connectionFeedback.textContent = 'Please enter a DSN connection string';
+            connectionFeedback.className = 'connection-status error';
+            connectionFeedback.style.display = 'block';
             return;
         }
-
+        
         const connectBtn = document.getElementById('config-connect');
         if (!connectBtn) {
             console.error('Connect button not found');
@@ -1386,7 +1447,7 @@ class LogObserver extends BaseObserver {
         fetch('/api/connection/configure', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ dsn })
+            body: JSON.stringify({ dsn, global: isGlobal })
         })
         .then(response => response.json())
         .then(result => {
@@ -1394,11 +1455,12 @@ class LogObserver extends BaseObserver {
                 this.connectionStatus = result.status;
                 this.updateConnectionUI();
                 this.updateCurrentConnectionDisplay();
-                connectionFeedback.textContent = 'Connected successfully!';
+                connectionFeedback.textContent = 'Connected successfully! Refreshing page...';
                 connectionFeedback.className = 'connection-status success';
                 connectionFeedback.style.display = 'block';
                 setTimeout(() => {
-                    this.closeConfigModal();
+                    // Refresh the page to reload with new connection
+                    window.location.reload();
                 }, 1500);
             } else {
                 this.connectionStatus = result.status || { connected: false, error: result.error };
@@ -1420,38 +1482,6 @@ class LogObserver extends BaseObserver {
             connectBtn.textContent = originalText;
             connectBtn.disabled = false;
         });
-    }
-
-    updateDsnPreview(dsn) {
-        const previewDiv = document.getElementById('parsed-dsn-preview');
-        if (!dsn.trim()) {
-            previewDiv.style.display = 'none';
-            return;
-        }
-
-        const parsed = this.parseDsn(dsn);
-        
-        const detailsToShow = Object.entries(parsed).filter(([key, value]) => value && key !== 'user' && key !== 'port');
-
-        if (detailsToShow.length > 0) {
-            previewDiv.style.display = 'grid';
-            previewDiv.innerHTML = '';
-
-            detailsToShow.forEach(([key, value]) => {
-                const labelEl = document.createElement('div');
-                labelEl.className = 'preview-info-label';
-                labelEl.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)}:`;
-
-                const valueEl = document.createElement('div');
-                valueEl.className = 'preview-info-value';
-                valueEl.textContent = value;
-
-                previewDiv.appendChild(labelEl);
-                previewDiv.appendChild(valueEl);
-            });
-        } else {
-            previewDiv.style.display = 'none';
-        }
     }
 
     parseDsn(dsn) {

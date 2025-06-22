@@ -1,21 +1,33 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 from database import DatabendClient, LogRepository, MetricsRepository, QueryRepository
 import os
 import argparse
 import json
 from urllib.parse import urlparse
+import uuid
+import secrets
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
-# Global variables for database components
-db_client = None
-log_repo = None
-metrics_repo = None
-query_repo = None
-connection_status = {"connected": False, "error": None, "dsn_masked": None}
+# Global variables for database components (when using global mode)
+global_db_client = None
+global_log_repo = None
+global_metrics_repo = None
+global_query_repo = None
+global_connection_status = {"connected": False, "error": None, "dsn_masked": None}
+
+# Session-based connections storage
+session_connections = {}
 
 # DSN configuration file path
 DSN_CONFIG_FILE = os.path.join(os.path.dirname(__file__), '.dsn_config.json')
+
+def get_session_id():
+    """Get or create session ID"""
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    return session['session_id']
 
 def mask_dsn(dsn):
     """Mask sensitive information in DSN string"""
@@ -44,18 +56,16 @@ def mask_dsn(dsn):
         return '*' * len(dsn)
 
 def save_dsn_config(dsn):
-    """Save DSN configuration to file"""
+    """Save DSN configuration to file (only for global mode)"""
     try:
         config = {'dsn': dsn}
         with open(DSN_CONFIG_FILE, 'w') as f:
             json.dump(config, f)
-        return True
     except Exception as e:
         print(f"Failed to save DSN config: {e}")
-        return False
 
 def load_dsn_config():
-    """Load DSN configuration from file"""
+    """Load DSN configuration from file (only for global mode)"""
     try:
         if os.path.exists(DSN_CONFIG_FILE):
             with open(DSN_CONFIG_FILE, 'r') as f:
@@ -65,53 +75,96 @@ def load_dsn_config():
         print(f"Failed to load DSN config: {e}")
     return None
 
-def initialize_database(dsn):
-    """Initialize database connection and repositories."""
-    import time
-    start_time = time.time()
-    
-    global db_client, log_repo, metrics_repo, query_repo, connection_status
+def initialize_global_database(dsn):
+    """Initialize global database connection and repositories."""
+    global global_db_client, global_log_repo, global_metrics_repo, global_query_repo, global_connection_status
     
     try:
-        print(f"🔗 Initializing database connection to: {mask_dsn(dsn)}")
+        global_db_client = DatabendClient(dsn)
         
+        # Test connection with a query that actually starts the warehouse
+        test_query = "SELECT sum(number) FROM numbers(10)"
+        rows, columns, error = global_db_client.execute_query(test_query)
+        if error:
+            raise Exception(f"Connection test failed: {error}")
+        
+        global_log_repo = LogRepository(global_db_client)
+        global_metrics_repo = MetricsRepository(global_db_client)
+        global_query_repo = QueryRepository(global_db_client)
+        global_connection_status = {
+            "connected": True,
+            "error": None,
+            "dsn_masked": mask_dsn(dsn)
+        }
+        print("Global database connection established successfully")
+        return True
+    except Exception as e:
+        global_connection_status = {
+            "connected": False,
+            "error": str(e),
+            "dsn_masked": None
+        }
+        print(f"Failed to connect to global database: {e}")
+        return False
+
+def initialize_session_database(session_id, dsn):
+    """Initialize session-specific database connection and repositories."""
+    try:
         db_client = DatabendClient(dsn)
         
-        # Test the connection with a simple query
-        print("🧪 Testing database connection...")
-        _, _, error = db_client.execute_query("SELECT 1")
+        # Test connection with a query that actually starts the warehouse
+        test_query = "SELECT sum(number) FROM numbers(10)"
+        rows, columns, error = db_client.execute_query(test_query)
         if error:
-            raise Exception(f"Database connection test failed: {error}")
-            
-        print("📚 Initializing repositories...")
+            raise Exception(f"Connection test failed: {error}")
+        
         log_repo = LogRepository(db_client)
         metrics_repo = MetricsRepository(db_client)
         query_repo = QueryRepository(db_client)
         
-        connection_status = {
-            "connected": True,
-            "error": None,
-            "dsn_masked": mask_dsn(dsn),
-            "database": db_client.database,
-            "message": "Successfully connected."
+        session_connections[session_id] = {
+            "db_client": db_client,
+            "log_repo": log_repo,
+            "metrics_repo": metrics_repo,
+            "query_repo": query_repo,
+            "connection_status": {
+                "connected": True,
+                "error": None,
+                "dsn_masked": mask_dsn(dsn)
+            }
         }
-        if not urlparse(dsn).path or not urlparse(dsn).path.strip('/'):
-            connection_status['message'] = "Warning: No database specified in DSN, defaulting to 'system_history'."
-        
-        execution_time = time.time() - start_time
-        print(f"✅ Database initialized successfully in {execution_time:.3f}s! Database: {db_client.database}")
-        save_dsn_config(dsn)
+        print(f"Session {session_id} database connection established successfully")
         return True
     except Exception as e:
-        execution_time = time.time() - start_time
-        connection_status = {
-            "connected": False,
-            "error": str(e),
-            "dsn_masked": mask_dsn(dsn) if dsn else None,
-            "database": None
+        session_connections[session_id] = {
+            "db_client": None,
+            "log_repo": None,
+            "metrics_repo": None,
+            "query_repo": None,
+            "connection_status": {
+                "connected": False,
+                "error": str(e),
+                "dsn_masked": None
+            }
         }
-        print(f"❌ Failed to initialize database after {execution_time:.3f}s: {e}")
+        print(f"Failed to connect session {session_id} to database: {e}")
         return False
+
+def get_repositories():
+    """Get repositories based on session or global configuration"""
+    session_id = get_session_id()
+    
+    # Check if session has its own connection
+    if session_id in session_connections:
+        conn = session_connections[session_id]
+        status = conn["connection_status"].copy()
+        status["connection_type"] = "session"
+        return conn["log_repo"], conn["metrics_repo"], conn["query_repo"], status
+    
+    # Fall back to global connection
+    status = global_connection_status.copy()
+    status["connection_type"] = "global"
+    return global_log_repo, global_metrics_repo, global_query_repo, status
 
 @app.route('/')
 def index():
@@ -119,125 +172,54 @@ def index():
 
 @app.route('/api/connection/status', methods=['GET'])
 def get_connection_status():
+    _, _, _, connection_status = get_repositories()
     return jsonify(connection_status)
 
 @app.route('/api/connection/configure', methods=['POST'])
 def configure_connection():
-    import time
-    start_time = time.time()
+    data = request.get_json()
+    dsn = data.get('dsn')
+    is_global = data.get('global', False)
+    session_id = get_session_id()
     
-    try:
-        data = request.get_json()
-        dsn = data.get('dsn')
-        print(f"📥 API /api/connection/configure called with DSN: {mask_dsn(dsn)}")
-        
-        if not dsn:
-            return jsonify({'success': False, 'error': 'DSN is required'}), 400
-        
-        # Check if database is connected
-        if not db_client or not connection_status["connected"]:
-            return jsonify({
-                'success': False,
-                'message': 'Database not connected, please configure DSN first'
-            }), 400
-        
-        success = initialize_database(dsn)
-        
-        execution_time = time.time() - start_time
-        print(f"📤 API /api/connection/configure completed in {execution_time:.3f}s, success: {success}")
-        
-        return jsonify({
-            'success': success,
-            'status': connection_status
-        })
-    except Exception as e:
-        execution_time = time.time() - start_time
-        print(f"❌ API /api/connection/configure failed after {execution_time:.3f}s: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    if not dsn:
+        return jsonify({'success': False, 'error': 'DSN is required'}), 400
+    
+    if is_global:
+        # Configure global connection
+        success = initialize_global_database(dsn)
+        if success:
+            save_dsn_config(dsn)  # Save to file for persistence
+        _, _, _, connection_status = get_repositories()
+    else:
+        # Configure session-specific connection
+        success = initialize_session_database(session_id, dsn)
+        _, _, _, connection_status = get_repositories()
+    
+    return jsonify({
+        'success': success,
+        'status': connection_status
+    })
 
 @app.route('/api/logs', methods=['POST'])
 def get_logs():
-    import time
-    start_time = time.time()
-    
-    if not connection_status["connected"]:
-        return jsonify({
-            'error': 'Database not connected. Please configure connection first.',
-            'logs': [],
-            'total': 0,
-            'page': 1,
-            'pageSize': 200,
-            'totalPages': 0,
-            'stats': {'total': 0, 'error': 0, 'warning': 0, 'info': 0, 'debug': 0}
-        }), 503
-    
-    try:
-        filters = request.get_json() or {}
-        print(f"📥 API /api/logs called with filters: {filters}")
-        
-        result = log_repo.get_logs(filters)
-        
-        execution_time = time.time() - start_time
-        print(f"📤 API /api/logs completed in {execution_time:.3f}s, returned {result.get('total', 0)} total logs")
-        
-        return jsonify(result)
-    except Exception as e:
-        execution_time = time.time() - start_time
-        print(f"❌ API /api/logs failed after {execution_time:.3f}s: {str(e)}")
-        return jsonify({
-            'error': str(e),
-            'logs': [],
-            'total': 0,
-            'page': 1,
-            'pageSize': 200,
-            'totalPages': 0,
-            'stats': {'total': 0, 'error': 0, 'warning': 0, 'info': 0, 'debug': 0}
-        }), 500
+    log_repo, _, _, _ = get_repositories()
+    filters = request.get_json() or {}
+    result = log_repo.get_logs(filters)
+    return jsonify(result)
 
 @app.route('/api/metrics', methods=['GET'])
 def get_metrics():
-    import time
-    start_time = time.time()
-    
-    if not connection_status['connected']:
-        return jsonify({'error': 'Database not connected'}), 400
-    
-    try:
-        print(f"📥 API /api/metrics called")
-        
-        metrics = metrics_repo.get_metrics()
-        
-        execution_time = time.time() - start_time
-        print(f"📤 API /api/metrics completed in {execution_time:.3f}s")
-        
-        return jsonify(metrics)
-    except Exception as e:
-        execution_time = time.time() - start_time
-        print(f"❌ API /api/metrics failed after {execution_time:.3f}s: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+    _, metrics_repo, _, _ = get_repositories()
+    metrics = metrics_repo.get_metrics()
+    return jsonify(metrics)
 
 @app.route('/api/queries', methods=['POST'])
 def get_queries():
-    import time
-    start_time = time.time()
-    
-    if not connection_status['connected']:
-        return jsonify({'error': 'Database not connected'}), 400
-    
-    try:
-        filters = request.json or {}
-        print(f"📥 API /api/queries called with filters: {filters}")
-        
-        queries_data = query_repo.get_queries(filters)
-        
-        execution_time = time.time() - start_time
-        print(f"📤 API /api/queries completed in {execution_time:.3f}s, returned {queries_data.get('total', 0)} total queries")
-        
-        return jsonify(queries_data)
-    except Exception as e:
-        execution_time = time.time() - start_time
-        print(f"❌ API /api/queries failed after {execution_time:.3f}s: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+    _, _, query_repo, _ = get_repositories()
+    filters = request.json or {}
+    queries_data = query_repo.get_queries(filters)
+    return jsonify(queries_data)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Databend Log Observer')
@@ -246,17 +228,13 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    # Load DSN from config file if exists
-    dsn = load_dsn_config()
-    
-    # Initialize database if DSN provided
-    if args.dsn:
-        initialize_database(args.dsn)
-    elif dsn:
-        initialize_database(dsn)
+    # Load global DSN configuration from file on startup
+    global_dsn = load_dsn_config()
+    if global_dsn:
+        initialize_global_database(global_dsn)
     
     print(f"🚀 Starting Databend Log Observer on port {args.port}")
-    if not args.dsn and not dsn:
+    if not args.dsn and not global_dsn:
         print("💡 No DSN provided. Please configure database connection via web interface.")
     
     app.run(host='0.0.0.0', port=args.port, debug=True)
