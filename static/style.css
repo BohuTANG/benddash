@@ -553,8 +553,11 @@ body {
 }
 
 .log-entry.expanded {
-    background: var(--bg-secondary);
-    border-left: 3px solid var(--info);
+    background: #fffbf0;
+    border-left: 4px solid var(--info);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
 }
 
 .log-entry:last-child {
@@ -610,7 +613,7 @@ body {
 
 .log-message {
     font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     color: var(--text-primary);
     line-height: 1.5;
     word-break: break-word;
@@ -762,7 +765,7 @@ body {
     height: 200px;
     padding: var(--space-3);
     font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     border: 1px solid var(--border-light);
     border-radius: 4px;
     background-color: var(--bg-secondary);

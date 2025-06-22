@@ -246,22 +246,6 @@ class SharedUtils {
 
 // Universal UI Handler Class
 class UIHandler {
-    static setupRefreshButton(buttonId, loadCallback) {
-        const refreshBtn = document.getElementById(buttonId);
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
-                if (typeof loadCallback === 'function') {
-                    loadCallback();
-                }
-                
-                refreshBtn.classList.add('refreshing');
-                setTimeout(() => {
-                    refreshBtn.classList.remove('refreshing');
-                }, 1000);
-            });
-        }
-    }
-    
     static showLoading(isLoading, config) {
         const { loadingOverlayId, buttonId, originalButtonText } = config;
         
@@ -430,7 +414,6 @@ class BaseObserver {
             paginationElementId: '',
             countElementId: '',
             loadingStateId: '',
-            refreshButtonId: '',
             emptyStateId: '',
             chartContainerId: '',
             chartTitleId: '',
@@ -510,7 +493,6 @@ class BaseObserver {
         this.isLoading = true;
         UIHandler.showLoading(true, {
             loadingOverlayId: this.config.loadingStateId,
-            buttonId: this.config.refreshButtonId,
             originalButtonText: 'Refresh'
         });
 
@@ -542,7 +524,6 @@ class BaseObserver {
             this.isLoading = false;
             UIHandler.showLoading(false, {
                 loadingOverlayId: this.config.loadingStateId,
-                buttonId: this.config.refreshButtonId,
                 originalButtonText: 'Refresh'
             });
         }
@@ -769,7 +750,6 @@ class LogObserver extends BaseObserver {
             paginationElementId: 'pagination',
             countElementId: 'logs-count',
             loadingStateId: 'loading-state',
-            refreshButtonId: 'refresh-btn',
             emptyStateId: 'empty-state',
             chartContainerId: 'logs-time-chart',
             chartTitleId: 'logs-chart-title',
@@ -946,16 +926,13 @@ class LogObserver extends BaseObserver {
         
         message.innerHTML = `<div class="message-preview">${highlightedTruncated}</div>`;
 
-        // Expand/Collapse icon button (only if message is long)
-        let expandBtn = null;
-        if (fullMessage.length > 150) {
-            expandBtn = this.createExpandButton();
-            expandBtn.onclick = (e) => {
-                e.stopPropagation();
-                this.toggleLogExpansion(entry, expandBtn);
-            };
-            message.appendChild(expandBtn);
-        }
+        // Expand/Collapse icon button for all logs
+        const expandBtn = this.createExpandButton();
+        expandBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.toggleLogExpansion(entry, expandBtn);
+        };
+        message.appendChild(expandBtn);
 
         // Meta information
         const meta = this.createMetaElement(log);
@@ -971,18 +948,16 @@ class LogObserver extends BaseObserver {
         entry.appendChild(content);
         entry.appendChild(expandedContent);
 
-        // Add click handler for expansion
-        if (fullMessage.length > 150) {
-            entry.style.cursor = 'pointer';
-            entry.onclick = (e) => {
-                const isExpanded = entry.classList.contains('expanded');
-                const clickingExpandedContent = e.target.closest('.log-expanded-content');
-                
-                if (!e.target.closest('.expand-icon-btn') && !(isExpanded && clickingExpandedContent)) {
-                    this.toggleLogExpansion(entry, expandBtn);
-                }
-            };
-        }
+        // Add click handler for expansion - all logs are expandable
+        entry.style.cursor = 'pointer';
+        entry.onclick = (e) => {
+            const isExpanded = entry.classList.contains('expanded');
+            const clickingExpandedContent = e.target.closest('.log-expanded-content');
+            
+            if (!e.target.closest('.expand-icon-btn') && !e.target.closest('.copy-icon') && !e.target.closest('.query-id-clickable') && !(isExpanded && clickingExpandedContent)) {
+                this.toggleLogExpansion(entry, expandBtn);
+            }
+        };
 
         return entry;
     }
