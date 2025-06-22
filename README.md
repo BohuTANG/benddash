@@ -2,6 +2,10 @@
 
 A lightweight, intuitive log observer for Databend databases.
 
+## Screenshots
+
+![alt text](image.png)
+
 ## Quick Start
 
 ```bash
@@ -15,9 +19,6 @@ python app.py
 open http://127.0.0.1:5002
 ```
 
-## Screenshots
-
-![alt text](image.png)
 
 ---
 
